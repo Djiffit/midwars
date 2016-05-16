@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bot
-  name="*team name*_Nymphora"
-  description="*team name* Nymphora"
+  name="TietokoneJoukkueParas_Nymphora"
+  description="TietokoneJoukkueParas Nymphora"
   heroname="Hero_Fairy"
   rootlua="../heroes/nymphora_main.lua"
-  defaultplayername="*team name*NymphoraBot"
+  defaultplayername="TietokoneJoukkueParasNymphoraBot"
   precachepath="/heroes/fairy/"
 />
