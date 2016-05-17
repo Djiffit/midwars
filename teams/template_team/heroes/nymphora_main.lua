@@ -214,7 +214,7 @@ local function StunUtility(botBrain)
           local allyPos = ally:GetPosition()
           local allyDistanceFromEnemy = Vector3.Distance2DSq(enemyPos, allyPos)
           if allyDistanceFromEnemy < 100 then
-            closeAllyCount += 1
+            closeAllyCount = closeAllyCount + 1
           end
           if closeAllyCount >= 5
             stunTarget = enemy
