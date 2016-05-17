@@ -14,7 +14,7 @@ object.bAttackCommands = true
 object.bAbilityCommands = true
 object.bOtherCommands = true
 
-object.bReportBehavior = false
+object.bReportBehavior = true
 object.bDebugUtility = false
 object.bDebugExecute = false
 
@@ -102,6 +102,20 @@ function object:onthinkOverride(tGameVariables)
 
   -- custom code here
 end
+local function CustomHarassUtilityOverride(hero)
+  local nUtility = 0
+
+  if skills.hook:CanActivate() then
+    nUtility = nUtility + 10
+  end
+
+  if skills.ulti:CanActivate() then
+    nUtility = nUtility + 40
+  end
+
+  return nUtility
+end
+behaviorLib.CustomHarassUtility = CustomHarassUtilityOverride
 object.onthinkOld = object.onthink
 object.onthink = object.onthinkOverride
 
@@ -119,5 +133,156 @@ end
 -- override combat event trigger function.
 object.oncombateventOld = object.oncombatevent
 object.oncombatevent = object.oncombateventOverride
+local function IsFreeLine(pos1, pos2)
+  core.DrawDebugLine(pos1, pos2, "yellow")
+  local tAllies = core.CopyTable(core.localUnits["AllyUnits"])
+  local tEnemies = core.CopyTable(core.localUnits["EnemyCreeps"])
+  local distanceLine = Vector3.Distance2DSq(pos1, pos2)
+  local x1, x2, y1, y2 = pos1.x, pos2.x, pos1.y, pos2.y
+  local spaceBetween = 50 * 50
+  for _, ally in pairs(tAllies) do
+    local posAlly = ally:GetPosition()
+    local x3, y3 = posAlly.x, posAlly.y
+    local calc = x1*y2 - x2*y1 + x2*y3 - x3*y2 + x3*y1 - x1*y3
+    local calc2 = calc * calc
+    local actual = calc2 / distanceLine
+    if actual < spaceBetween then
+      core.DrawXPosition(posAlly, "red", 25)
+      return false
+    end
+  end
+  for _, creep in pairs(tEnemies) do
+    local posCreep = creep:GetPosition()
+    local x3, y3 = posCreep.x, posCreep.y
+    local calc = x1*y2 - x2*y1 + x2*y3 - x3*y2 + x3*y1 - x1*y3
+    local calc2 = calc * calc
+    local actual = calc2 / distanceLine
+    if actual < spaceBetween then
+      core.DrawXPosition(posCreep, "red", 25)
+      return false
+    end
+  end
+  core.DrawDebugLine(pos1, pos2, "green")
+  return true
+end
+
+local function DetermineHookTarget(hook)
+  local tLocalEnemies = core.CopyTable(core.localUnits["EnemyHeroes"])
+  local maxDistance = hook:GetRange()
+  local maxDistanceSq = maxDistance * maxDistance
+  local myPos = core.unitSelf:GetPosition()
+  local unitTarget = nil
+  local distanceTarget = 999999999
+  for _, unitEnemy in pairs(tLocalEnemies) do
+    local enemyPos = unitEnemy:GetPosition()
+    local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
+    core.DrawXPosition(enemyPos, "yellow", 50)
+    if distanceEnemy < maxDistanceSq then
+      if distanceEnemy < distanceTarget and IsFreeLine(myPos, enemyPos) then
+        unitTarget = unitEnemy
+        distanceTarget = distanceEnemy
+      end
+    end
+  end
+  return unitTarget
+end
+
+local hookTarget = nil
+local function HookUtility(botBrain)
+  local hook = skills.hook
+  if hook and hook:CanActivate() then
+    local unitTarget = DetermineHookTarget(hook)
+    if unitTarget then
+      hookTarget = unitTarget:GetPosition()
+      core.DrawXPosition(hookTarget, "green", 50)
+      return 60
+    end
+  end
+  hookTarget = nil
+  return 0
+end
+local function HookExecute(botBrain)
+  local hook = skills.hook
+  if hook and hook:CanActivate() and hookTarget then
+    return core.OrderAbilityPosition(botBrain, hook, hookTarget)
+  end
+  return false
+end
+local HookBehavior = {}
+HookBehavior["Utility"] = HookUtility
+HookBehavior["Execute"] = HookExecute
+HookBehavior["Name"] = "Hooking"
+tinsert(behaviorLib.tBehaviors, HookBehavior)
+
+
+RotEnableBehavior["Utility"] = RotEnableUtility
+RotEnableBehavior["Execute"] = RotEnableExecute
+RotEnableBehavior["Name"] = "Rot enable"
+tinsert(behaviorLib.tBehaviors, RotEnableBehavior)
+
+local function RotEnableUtility(botBrain)
+	local rot = skills.rot
+  local myPos = unit:GetPosition()
+	local range = rot:GetTargetRadius()
+  local tLocalEnemies = core.CopyTable(core.localUnits["EnemyHeroes"])
+	local rangeSq = range * range
+	local hasEffect = core.unitSelf:HasState("State_Devourer_Ability2_Self")
+	 for _, unitEnemy in pairs(tLocalEnemies) do
+    local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
+    if Vector3.Distance2DSq(enemy:GetPosition(), myPos) < rangeSq then
+      return 50
+    end
+  end
+	return 0
+end 
+
+local function RotEnableExecute
+	local rot = skills.rot
+	if rot and rot:CanActivate() then
+		return core.OrderAbility(botBrain, rot)	
+	end
+	return false
+end
+
+
+local RotDisableBehavior = {}
+local function RotDisableUtility(botBrain)
+  local rot = skills.rot
+  local rotRange = rot:GetTargetRadius()
+  local hasEffect = core.unitSelf:HasState("State_Devourer_Ability2_Self")
+  local hasEnemiesClose = HasEnemiesInRange(core.unitSelf, rotRange)
+  if rot:CanActivate() and hasEffect and not hasEnemiesClose then
+    return 1000
+  end
+  return 0
+end
+local function RotDisableExecute(botBrain)
+  local rot = skills.rot
+  if rot and rot:CanActivate() then
+    return core.OrderAbility(botBrain, rot)
+  end
+  return false
+end
+
+local function HasEnemiesInRange(unit, range)
+  local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
+  local rangeSq = range * range
+  local myPos = unit:GetPosition()
+  for _, enemy in pairs(enemies) do
+    if Vector3.Distance2DSq(enemy:GetPosition(), myPos) < rangeSq then
+      return true
+    end
+  end
+  return false
+end
+
+RotDisableBehavior["Utility"] = RotDisableUtility
+RotDisableBehavior["Execute"] = RotDisableExecute
+RotDisableBehavior["Name"] = "Rot disable"
+tinsert(behaviorLib.tBehaviors, RotDisableBehavior)
+
+
+
+
 
 BotEcho('finished loading devourer_main')
