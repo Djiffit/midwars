@@ -62,12 +62,12 @@ function object:SkillBuild()
 
   if not bSkillsValid then
     skills.hook = unitSelf:GetAbility(0)
-    skills.fart = unitSelf:GetAbility(1)
+    skills.rot = unitSelf:GetAbility(1)
     skills.skin = unitSelf:GetAbility(2)
     skills.ulti = unitSelf:GetAbility(3)
     skills.attributeBoost = unitSelf:GetAbility(4)
 
-    if skills.hook and skills.fart and skills.skin and skills.ulti and skills.attributeBoost then
+    if skills.hook and skills.rot and skills.skin and skills.ulti and skills.attributeBoost then
       bSkillsValid = true
     else
       return
@@ -82,14 +82,19 @@ function object:SkillBuild()
     skills.ulti:LevelUp()
   elseif skills.hook:CanLevelUp() then
     skills.hook:LevelUp()
-  elseif skills.fart:CanLevelUp() then
-    skills.fart:LevelUp()
+  elseif skills.rot:CanLevelUp() then
+    skills.rot:LevelUp()
   elseif skills.skin:CanLevelUp() then
     skills.skin:LevelUp()
   else
     skills.attributeBoost:LevelUp()
   end
 end
+
+behaviorLib.StartingItems = {"Item_ManaBattery", "2 Item_MinorTotem", "Item_HealthPotion", "Item_RunesOfTheBlight"}
+behaviorLib.LaneItems = {"Item_Marchers", "Item_EnhancedMarchers", "Item_PowerSupply"}
+behaviorLib.MidItems = {"Item_PortalKey", "Item_MagicArmor2"}
+behaviorLib.LateItems = {"Item_BehemothsHeart"}
 
 ------------------------------------------------------
 --            onthink override                      --
@@ -215,6 +220,7 @@ HookBehavior["Name"] = "Hooking"
 tinsert(behaviorLib.tBehaviors, HookBehavior)
 
 
+local RotEnableBehavior = {}
 RotEnableBehavior["Utility"] = RotEnableUtility
 RotEnableBehavior["Execute"] = RotEnableExecute
 RotEnableBehavior["Name"] = "Rot enable"
@@ -227,21 +233,38 @@ local function RotEnableUtility(botBrain)
   local tLocalEnemies = core.CopyTable(core.localUnits["EnemyHeroes"])
 	local rangeSq = range * range
 	local hasEffect = core.unitSelf:HasState("State_Devourer_Ability2_Self")
+
 	 for _, unitEnemy in pairs(tLocalEnemies) do
+
     local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
+
     if Vector3.Distance2DSq(enemy:GetPosition(), myPos) < rangeSq then
       return 50
     end
+
   end
+
 	return 0
 end 
 
-local function RotEnableExecute
+local function RotEnableExecute()
 	local rot = skills.rot
 	if rot and rot:CanActivate() then
 		return core.OrderAbility(botBrain, rot)	
 	end
 	return false
+end
+
+local function HasEnemiesInRange(unit, range)
+  local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
+  local rangeSq = range * range
+  local myPos = unit:GetPosition()
+  for _, enemy in pairs(enemies) do
+    if Vector3.Distance2DSq(enemy:GetPosition(), myPos) < rangeSq then
+      return true
+    end
+  end
+  return false
 end
 
 
@@ -264,17 +287,7 @@ local function RotDisableExecute(botBrain)
   return false
 end
 
-local function HasEnemiesInRange(unit, range)
-  local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
-  local rangeSq = range * range
-  local myPos = unit:GetPosition()
-  for _, enemy in pairs(enemies) do
-    if Vector3.Distance2DSq(enemy:GetPosition(), myPos) < rangeSq then
-      return true
-    end
-  end
-  return false
-end
+
 
 RotDisableBehavior["Utility"] = RotDisableUtility
 RotDisableBehavior["Execute"] = RotDisableExecute
