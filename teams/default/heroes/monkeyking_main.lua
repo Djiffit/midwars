@@ -93,6 +93,11 @@ function object:SkillBuild()
 end
 
 
+behaviorLib.StartingItems = {"Item_HealthPotion", "Item_ManaPotion", "Item_MinorTotem", "Item_RunesOfTheBlight", "Item_LoggersHatchet"}
+behaviorLib.LaneItems = {"Item_Bottle", "Item_Energizer",}
+behaviorLib.MidItems = {"Item_EnhancedMarchers", "Item_Dawnbringer", "Item_PowerSupply"}
+behaviorLib.LateItems = {"Item_DaemonicBreastplate", "Item_Protect"}
+
 
 local function CustomHarassUtilityOverride(hero)
   local nUtility = 0
@@ -108,6 +113,7 @@ local function CustomHarassUtilityOverride(hero)
   return nUtility
 end
 behaviorLib.CustomHarassUtility = CustomHarassUtilityOverride
+
 
 
 local function myDistanceTo(unitEnemy) 
