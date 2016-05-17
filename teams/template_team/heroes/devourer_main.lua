@@ -107,20 +107,6 @@ function object:onthinkOverride(tGameVariables)
 
   -- custom code here
 end
-local function CustomHarassUtilityOverride(hero)
-  local nUtility = 0
-
-  if skills.hook:CanActivate() then
-    nUtility = nUtility + 10
-  end
-
-  if skills.ulti:CanActivate() then
-    nUtility = nUtility + 40
-  end
-
-  return nUtility
-end
-behaviorLib.CustomHarassUtility = CustomHarassUtilityOverride
 object.onthinkOld = object.onthink
 object.onthink = object.onthinkOverride
 
@@ -138,6 +124,100 @@ end
 -- override combat event trigger function.
 object.oncombateventOld = object.oncombatevent
 object.oncombatevent = object.oncombateventOverride
+
+-- Harass
+local function CustomHarassUtilityOverride(hero)
+  local nUtility = 0
+
+  if skills.hook:CanActivate() then
+    nUtility = nUtility + 10
+  end
+
+  if skills.ulti:CanActivate() then
+    nUtility = nUtility + 40
+  end
+
+  return nUtility
+end
+behaviorLib.CustomHarassUtility = CustomHarassUtilityOverride
+
+local itemPK = nil
+local FindItemsOld = core.FindItems
+local function FindItemsFn(botBrain)
+  FindItemsOld(botBrain)
+  if itemPK then
+    return
+  end
+  local unitSelf = core.unitSelf
+  local inventory = unitSelf:GetInventory(false)
+  if inventory ~= nil then
+    for slot = 1, 6, 1 do
+      local curItem = inventory[slot]
+      if curItem and not curItem:IsRecipe() then
+        if not itemPK and curItem:GetName() == "Item_PortalKey" then
+          itemPK = core.WrapInTable(curItem)
+        end
+      end
+    end
+  end
+end
+core.FindItems = FindItemsFn
+
+local function HarassHeroExecuteOverride(botBrain)
+  local unitTarget = behaviorLib.heroTarget
+  if unitTarget == nil or not unitTarget:IsValid() then
+    return false --can not execute, move on to the next behavior
+  end
+
+  local unitSelf = core.unitSelf
+
+  if unitSelf:IsChanneling() then
+    return
+  end
+
+  local bActionTaken = false
+
+  --since we are using an old pointer, ensure we can still see the target for entity targeting
+  if core.CanSeeUnit(botBrain, unitTarget) then
+    local dist = Vector3.Distance2D(unitSelf:GetPosition(), unitTarget:GetPosition())
+    local attkRange = core.GetAbsoluteAttackRangeToUnit(unitSelf, unitTarget);
+
+    local itemGhostMarchers = core.itemGhostMarchers
+
+    local ulti = skills.ulti
+    local ultiRange = ulti and (ulti:GetRange() + core.GetExtraRange(unitSelf) + core.GetExtraRange(unitTarget)) or 0
+
+    local bUseUlti = true
+
+    if ulti and ulti:CanActivate() and bUseUlti and dist < ultiRange then
+      bActionTaken = core.OrderAbilityEntity(botBrain, ulti, unitTarget)
+    elseif (ulti and ulti:CanActivate() and bUseUlti and dist > ultiRange) then
+      --move in when we want to ult
+      local desiredPos = unitTarget:GetPosition()
+
+      if itemPK and itemPK:CanActivate() then
+        bActionTaken = core.OrderItemPosition(botBrain, unitSelf, itemPK, desiredPos)
+      end
+
+      if not bActionTaken and itemGhostMarchers and itemGhostMarchers:CanActivate() then
+        bActionTaken = core.OrderItemClamp(botBrain, unitSelf, itemGhostMarchers)
+      end
+
+      if not bActionTaken and behaviorLib.lastHarassUtil < behaviorLib.diveThreshold then
+        desiredPos = core.AdjustMovementForTowerLogic(desiredPos)
+      end
+      core.OrderMoveToPosClamp(botBrain, unitSelf, desiredPos, false)
+      bActionTaken = true
+    end
+  end
+
+  if not bActionTaken then
+    return object.harassExecuteOld(botBrain)
+  end
+end
+object.harassExecuteOld = behaviorLib.HarassHeroBehavior["Execute"]
+behaviorLib.HarassHeroBehavior["Execute"] = HarassHeroExecuteOverride
+
 local function IsFreeLine(pos1, pos2)
   core.DrawDebugLine(pos1, pos2, "yellow")
   local tAllies = core.CopyTable(core.localUnits["AllyUnits"])
@@ -219,42 +299,7 @@ HookBehavior["Execute"] = HookExecute
 HookBehavior["Name"] = "Hooking"
 tinsert(behaviorLib.tBehaviors, HookBehavior)
 
-
 local RotEnableBehavior = {}
-RotEnableBehavior["Utility"] = RotEnableUtility
-RotEnableBehavior["Execute"] = RotEnableExecute
-RotEnableBehavior["Name"] = "Rot enable"
-tinsert(behaviorLib.tBehaviors, RotEnableBehavior)
-
-local function RotEnableUtility(botBrain)
-	local rot = skills.rot
-  local myPos = unit:GetPosition()
-	local range = rot:GetTargetRadius()
-  local tLocalEnemies = core.CopyTable(core.localUnits["EnemyHeroes"])
-	local rangeSq = range * range
-	local hasEffect = core.unitSelf:HasState("State_Devourer_Ability2_Self")
-
-	 for _, unitEnemy in pairs(tLocalEnemies) do
-
-    local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
-
-    if Vector3.Distance2DSq(enemy:GetPosition(), myPos) < rangeSq then
-      return 50
-    end
-
-  end
-
-	return 0
-end 
-
-local function RotEnableExecute()
-	local rot = skills.rot
-	if rot and rot:CanActivate() then
-		return core.OrderAbility(botBrain, rot)	
-	end
-	return false
-end
-
 local function HasEnemiesInRange(unit, range)
   local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
   local rangeSq = range * range
@@ -266,7 +311,27 @@ local function HasEnemiesInRange(unit, range)
   end
   return false
 end
-
+local function RotEnableUtility(botBrain)
+  local rot = skills.rot
+  local rotRange = rot:GetTargetRadius()
+  local hasEffect = core.unitSelf:HasState("State_Devourer_Ability2_Self")
+  local hasEnemiesClose = HasEnemiesInRange(core.unitSelf, rotRange)
+  if rot:CanActivate() and hasEnemiesClose and not hasEffect then
+    return 50
+  end
+  return 0
+end
+local function RotEnableExecute(botBrain)
+  local rot = skills.rot
+  if rot and rot:CanActivate() then
+    return core.OrderAbility(botBrain, rot)
+  end
+  return false
+end
+RotEnableBehavior["Utility"] = RotEnableUtility
+RotEnableBehavior["Execute"] = RotEnableExecute
+RotEnableBehavior["Name"] = "Rot enable"
+tinsert(behaviorLib.tBehaviors, RotEnableBehavior)
 
 local RotDisableBehavior = {}
 local function RotDisableUtility(botBrain)
@@ -286,16 +351,9 @@ local function RotDisableExecute(botBrain)
   end
   return false
 end
-
-
-
 RotDisableBehavior["Utility"] = RotDisableUtility
 RotDisableBehavior["Execute"] = RotDisableExecute
 RotDisableBehavior["Name"] = "Rot disable"
 tinsert(behaviorLib.tBehaviors, RotDisableBehavior)
-
-
-
-
 
 BotEcho('finished loading devourer_main')
