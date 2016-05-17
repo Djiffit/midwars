@@ -28,6 +28,7 @@ object.metadata = {}
 object.behaviorLib = {}
 object.skills = {}
 
+
 runfile "bots/core.lua"
 runfile "bots/botbraincore.lua"
 runfile "bots/eventsLib.lua"
@@ -90,6 +91,155 @@ function object:SkillBuild()
     skills.attributeBoost:LevelUp()
   end
 end
+
+
+
+local function CustomHarassUtilityOverride(hero)
+  local nUtility = 0
+
+  if skills.dash:CanActivate() then
+    nUtility = nUtility + 10
+  end
+
+  if skills.ulti:CanActivate() then
+    nUtility = nUtility + 40
+  end
+
+  return nUtility
+end
+behaviorLib.CustomHarassUtility = CustomHarassUtilityOverride
+
+
+local function myDistanceTo(unitEnemy) 
+
+  local myPos = core.unitSelf:GetPosition()
+	local enemyPos = unitEnemy:GetPosition()
+
+	return Vector3.Distance2D(enemyPos, myPos)
+
+end
+
+local function findNearestHero() 
+	local tLocalEnemyHeroes = core.CopyTable(core.localUnits["EnemyHeroes"])
+	local dist = 999999999
+
+	local found = nil
+
+	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
+		
+
+    local distToEnemy = myDistanceTo(unitEnemy)
+    
+		
+		if dist > distToEnemy then
+
+			dist = distToEnemy
+      found = unitEnemy
+    
+    end
+
+	end
+
+	return found
+
+end
+
+
+local function findNearestEnemyCreep() 
+	local tLocalEnemyHeroes = core.CopyTable(core.localUnits["EnemyCreeps"])
+	local dist = 999999999
+	local found = nil
+	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
+		
+
+    local distToEnemy = myDistanceTo(unitEnemy)
+    
+		
+		if dist > distToEnemy then
+
+			dist = distToEnemy
+      found = unitEnemy
+    
+    end
+
+	end
+
+	return found
+
+end
+
+
+local function selectTargetForSkill(skill)
+	local range = skill:GetRange()
+	local enemyHero = findNearestHero()
+
+	if enemyHero then
+		local distToEnemy = myDistanceTo(enemyHero)
+
+
+		if distToEnemy < range then
+			return enemyHero
+		end
+	end
+
+
+	--[[BotEcho('enemy hero is null or distant')--]]
+
+
+
+	local enemyCreep = findNearestEnemyCreep()
+
+	if enemyCreep then
+		local distToEnemy = myDistanceTo(enemyCreep)
+
+		if distToEnemy < range then
+			return enemyHero
+		end
+	end
+
+	
+	--[[BotEcho('enemy creep is null or distant')--]]
+
+	return nil
+
+
+end 
+
+local function DashBehaviorUtility(botBrain)
+
+	BotEcho('DashBehaviorUtility')
+ 
+	local target = selectTargetForSkill(skills.dash)
+
+	if target then
+		return 100
+	end
+
+
+	return 0
+
+end
+
+local function DashBehaviorExecute(botBrain)
+	BotEcho('DashBehaviorExecute')
+	local target = selectTargetForSkill(skills.dash)
+  local dash = skills.dash
+
+
+	if dash and dash:CanActivate() and target then
+	
+		return core.OrderAbility(botBrain, dash)	
+
+	end
+
+	return false
+end
+
+dashBehavior = {}
+dashBehavior["Utility"] = DashBehaviorUtility
+dashBehavior["Execute"] = DashBehaviorExecute
+dashBehavior["Name"] = "Dashing"
+tinsert(behaviorLib.tBehaviors, dashBehavior)
 
 ------------------------------------------------------
 --            onthink override                      --
