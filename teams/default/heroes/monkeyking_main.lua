@@ -146,10 +146,10 @@ end
 
 
 local function findNearestEnemyCreep() 
-	local tLocalEnemyHeroes = core.CopyTable(core.localUnits["EnemyCreeps"])
+	local tLocalEnemyCreeps = core.CopyTable(core.localUnits["EnemyCreeps"])
 	local dist = 999999999
 	local found = nil
-	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
+	for _, unitEnemy in pairs(tLocalEnemyCreeps) do
 		
 
     local distToEnemy = myDistanceTo(unitEnemy)
@@ -207,8 +207,12 @@ end
 
 local function DashBehaviorUtility(botBrain)
 
+	
+
+	if not skills.dash or not skills.dash:CanActivate() then
+		return 0
+	end
 	BotEcho('DashBehaviorUtility')
- 
 	local target = selectTargetForSkill(skills.dash)
 
 	if target then
@@ -219,6 +223,30 @@ local function DashBehaviorUtility(botBrain)
 	return 0
 
 end
+
+local heroWeight = 3
+
+local function enemyCount(range)
+	local count = 0
+	local tLocalEnemyCreeps = core.CopyTable(core.localUnits["EnemyCreeps"])
+	local tLocalEnemyHeroes = core.CopyTable(core.localUnits["EnemyHeroes"])
+
+	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
+		if myDistanceTo(unitEnemy) < range then
+			count = count + heroWeight
+		end
+	end
+
+	for _, unitEnemy in pairs(tLocalEnemyCreeps) do
+		if myDistanceTo(unitEnemy) < range then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+
+
 
 local function DashBehaviorExecute(botBrain)
 	BotEcho('DashBehaviorExecute')
@@ -240,6 +268,51 @@ dashBehavior["Utility"] = DashBehaviorUtility
 dashBehavior["Execute"] = DashBehaviorExecute
 dashBehavior["Name"] = "Dashing"
 tinsert(behaviorLib.tBehaviors, dashBehavior)
+
+local rockThresh = 4
+
+local function RockBehaviorUtility(botBrain)
+
+	if not skills.rock or not skills.rock:CanActivate() then
+		return 0
+	end
+	BotEcho('RockBehaviorUtility')
+  BotEcho('Range: ')
+  BotEcho(skills.rock:GetTargetRadius())
+	local count = enemyCount(skills.rock:GetTargetRadius())
+	BotEcho('Enemy count '); 
+  BotEcho(count); 
+	if count >= rockThresh then
+		return 50 * count
+	end
+
+
+
+
+	return 0
+
+end
+
+local function RockBehaviorExecute(botBrain)
+  local rock = skills.rock
+
+
+	if rock and rock:CanActivate() then
+	
+		return core.OrderAbility(botBrain, rock)	
+
+	end
+
+	return false
+end
+
+rockBehavior = {}
+rockBehavior["Utility"] = RockBehaviorUtility
+rockBehavior["Execute"] = RockBehaviorExecute
+rockBehavior["Name"] = "Rock"
+tinsert(behaviorLib.tBehaviors, rockBehavior)
+
+
 
 ------------------------------------------------------
 --            onthink override                      --
