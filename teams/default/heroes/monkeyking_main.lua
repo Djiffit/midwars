@@ -127,16 +127,15 @@ local function findNearestHero()
 
 	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
 		
-
-    local distToEnemy = myDistanceTo(unitEnemy)
+	local distToEnemy = myDistanceTo(unitEnemy)
     
 		
-		if dist > distToEnemy then
+	if dist > distToEnemy then
 
-			dist = distToEnemy
-      found = unitEnemy
+		dist = distToEnemy
+		found = unitEnemy
     
-    end
+	end
 
 	end
 
