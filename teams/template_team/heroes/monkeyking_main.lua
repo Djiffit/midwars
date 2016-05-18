@@ -1,3 +1,4 @@
+
 local _G = getfenv(0)
 local object = _G.object
 
@@ -27,6 +28,7 @@ object.eventsLib = {}
 object.metadata = {}
 object.behaviorLib = {}
 object.skills = {}
+
 
 runfile "bots/core.lua"
 runfile "bots/botbraincore.lua"
@@ -90,6 +92,233 @@ function object:SkillBuild()
     skills.attributeBoost:LevelUp()
   end
 end
+
+
+behaviorLib.StartingItems = {"Item_HealthPotion", "Item_ManaPotion", "Item_MinorTotem", "Item_RunesOfTheBlight", "Item_LoggersHatchet"}
+behaviorLib.LaneItems = {"Item_Bottle", "Item_Energizer",}
+behaviorLib.MidItems = {"Item_EnhancedMarchers", "Item_Dawnbringer", "Item_PowerSupply"}
+behaviorLib.LateItems = {"Item_DaemonicBreastplate", "Item_Protect"}
+
+
+local function CustomHarassUtilityOverride(hero)
+  local nUtility = 0
+
+  if skills.dash:CanActivate() then
+    nUtility = nUtility + 10
+  end
+
+  if skills.ulti:CanActivate() then
+    nUtility = nUtility + 40
+  end
+
+  return nUtility
+end
+behaviorLib.CustomHarassUtility = CustomHarassUtilityOverride
+
+
+
+local function myDistanceTo(unitEnemy) 
+
+  local myPos = core.unitSelf:GetPosition()
+	local enemyPos = unitEnemy:GetPosition()
+
+	return Vector3.Distance2D(enemyPos, myPos)
+
+end
+
+local function findNearestHero() 
+	local tLocalEnemyHeroes = core.CopyTable(core.localUnits["EnemyHeroes"])
+	local dist = 999999999
+
+	local found = nil
+
+	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
+		
+	local distToEnemy = myDistanceTo(unitEnemy)
+    
+		
+	if dist > distToEnemy then
+
+		dist = distToEnemy
+		found = unitEnemy
+    
+	end
+
+	end
+
+	return found
+
+end
+
+
+local function findNearestEnemyCreep() 
+	local tLocalEnemyCreeps = core.CopyTable(core.localUnits["EnemyCreeps"])
+	local dist = 999999999
+	local found = nil
+	for _, unitEnemy in pairs(tLocalEnemyCreeps) do
+		
+
+    local distToEnemy = myDistanceTo(unitEnemy)
+    
+		
+		if dist > distToEnemy then
+
+			dist = distToEnemy
+      found = unitEnemy
+    
+    end
+
+	end
+
+	return found
+
+end
+
+
+local function selectTargetForSkill(skill)
+	local range = skill:GetRange()
+	local enemyHero = findNearestHero()
+
+	if enemyHero then
+		local distToEnemy = myDistanceTo(enemyHero)
+
+
+		if distToEnemy < range then
+			return enemyHero
+		end
+	end
+
+
+	--[[BotEcho('enemy hero is null or distant')--]]
+
+
+
+	local enemyCreep = findNearestEnemyCreep()
+
+	if enemyCreep then
+		local distToEnemy = myDistanceTo(enemyCreep)
+
+		if distToEnemy < range then
+			return enemyHero
+		end
+	end
+
+	
+	--[[BotEcho('enemy creep is null or distant')--]]
+
+	return nil
+
+
+end 
+
+local function DashBehaviorUtility(botBrain)
+
+	
+
+	if not skills.dash or not skills.dash:CanActivate() then
+		return 0
+	end
+	BotEcho('DashBehaviorUtility')
+	local target = selectTargetForSkill(skills.dash)
+
+	if target then
+		return 100
+	end
+
+
+	return 0
+
+end
+
+local heroWeight = 3
+
+local function enemyCount(range)
+	local count = 0
+	local tLocalEnemyCreeps = core.CopyTable(core.localUnits["EnemyCreeps"])
+	local tLocalEnemyHeroes = core.CopyTable(core.localUnits["EnemyHeroes"])
+
+	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
+		if myDistanceTo(unitEnemy) < range then
+			count = count + heroWeight
+		end
+	end
+
+	for _, unitEnemy in pairs(tLocalEnemyCreeps) do
+		if myDistanceTo(unitEnemy) < range then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+
+
+
+local function DashBehaviorExecute(botBrain)
+	BotEcho('DashBehaviorExecute')
+	local target = selectTargetForSkill(skills.dash)
+  local dash = skills.dash
+
+
+	if dash and dash:CanActivate() and target then
+	
+		return core.OrderAbility(botBrain, dash)	
+
+	end
+
+	return false
+end
+
+dashBehavior = {}
+dashBehavior["Utility"] = DashBehaviorUtility
+dashBehavior["Execute"] = DashBehaviorExecute
+dashBehavior["Name"] = "Dashing"
+tinsert(behaviorLib.tBehaviors, dashBehavior)
+
+local rockThresh = 4
+
+local function RockBehaviorUtility(botBrain)
+
+	if not skills.rock or not skills.rock:CanActivate() then
+		return 0
+	end
+	BotEcho('RockBehaviorUtility')
+  BotEcho('Range: ')
+  BotEcho(skills.rock:GetTargetRadius())
+	local count = enemyCount(skills.rock:GetTargetRadius())
+	BotEcho('Enemy count '); 
+  BotEcho(count); 
+	if count >= rockThresh then
+		return 50 * count
+	end
+
+
+
+
+	return 0
+
+end
+
+local function RockBehaviorExecute(botBrain)
+  local rock = skills.rock
+
+
+	if rock and rock:CanActivate() then
+	
+		return core.OrderAbility(botBrain, rock)	
+
+	end
+
+	return false
+end
+
+rockBehavior = {}
+rockBehavior["Utility"] = RockBehaviorUtility
+rockBehavior["Execute"] = RockBehaviorExecute
+rockBehavior["Name"] = "Rock"
+tinsert(behaviorLib.tBehaviors, rockBehavior)
+
+
 
 ------------------------------------------------------
 --            onthink override                      --
