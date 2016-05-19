@@ -15,7 +15,7 @@ object.bAbilityCommands = true
 object.bOtherCommands = true
 
 object.bReportBehavior = true
-object.bDebugUtility = false
+object.bDebugUtility = true
 object.bDebugExecute = false
 
 object.logger = {}
@@ -53,8 +53,8 @@ object.heroName = 'Hero_Fairy'
 --------------------------------
 
 behaviorLib.StartingItems = {"Item_ManaPotion", "Item_HealthPotion", "Item_EnhancedMarchers", "Item_HomecomingStone"}
-behaviorLib.EarlyItems = {"2 Item_Strength5", "Item_HomecomingStone"}
-behaviorLib.MidItems = {"Item_Shield2", "Item_HomecomingStone"}
+behaviorLib.EarlyItems = {"2 Item_Strength5"}
+behaviorLib.MidItems = {"Item_Shield2"}
 behaviorLib.LateItems = {"Item_Morph", "Item_Silence"}
 
 --------------------------------
@@ -89,9 +89,13 @@ function object:SkillBuild()
 
   if skills.ulti:CanLevelUp() then
     skills.ulti:LevelUp()
-  elseif skills.heal:CanLevelUp() and skills.mana.GetLevel() > 0 and skills.stun.GetLevel() > 0 then
+-- test
+  elseif skills.heal:CanLevelUp() then
     skills.heal:LevelUp()
-  elseif skills.mana:CanLevelUp() and skills.stun.GetLevel() > 0 and skills.mana:GetLevel() < skills.heal.GetLevel() then
+-- test
+  elseif skills.heal:CanLevelUp() and skills.mana:GetLevel() > 0 and skills.stun:GetLevel() > 0 and skills.mana:GetLevel() >= skills.heal:GetLevel() then
+    skills.heal:LevelUp()
+  elseif skills.mana:CanLevelUp() and skills.stun:GetLevel() > 0 then
     skills.mana:LevelUp()
   elseif skills.heal:GetLevel() == 0 then
     skills.heal:LevelUp()
@@ -137,22 +141,111 @@ end
 object.oncombateventOld = object.oncombatevent
 object.oncombatevent = object.oncombateventOverride
 
+local function DontBreakChannelUtilityOverride(botbrain)
+  return 200
+end
+behaviorLib.DontBreakChannelUtility = DontBreakChannelUtilityOverride
+
+local function DetermineTeleportPosition(minimumDistance, enemyDistance)
+  local me = core.unitSelf
+  local myPos = core.allyMainBaseStructure:GetPosition()
+  local furthestTower = nil
+  local largestDistance = 0
+  local towers = core.CopyTable(core.allyTowers)
+  for _, tower in pairs(towers) do
+    local towerPos = tower:GetPosition()
+    local towerDistance = Vector3.Distance2DSq(myPos, towerPos)
+    if not furthestTower or towerDistance > largestDistance then
+      furthestTower = tower
+      largestDistance = towerDistance
+    end
+  end
+  if furthestTower then
+    return furthestTower:GetPosition()
+  else
+    Echo("no good positions")
+    return nil
+  end
+end
+
+local function DetermineEnemyWithOwnAlliesClose(me, count)
+  local myPos = me:GetPosition()
+  local allies = core.CopyTable(core.localUnits["AllyUnits"])
+  local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
+  for _, enemy in pairs(enemies) do
+    local enemyPos = enemy:GetPosition()
+    local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
+    if distanceEnemy < 900*900 then
+      Echo("Enemy close")
+      local closeAllyCount = 0
+      for _, ally in pairs(allies) do
+        local allyPos = ally:GetPosition()
+        local allyDistanceFromEnemy = Vector3.Distance2DSq(enemyPos, allyPos)
+        if allyDistanceFromEnemy < 900*900 then
+          closeAllyCount = closeAllyCount + 1
+        end
+        if closeAllyCount >= 2 then
+          Echo("Enough close allies")
+          return enemy
+          
+        end
+      end
+      Echo("No close allies")
+    end
+  end
+  return nil
+end
+
+local function DetermineEnemiesCloseTogetherPosition(distanceToSelf, count)
+  local me = core.unitSelf
+  local myPos = me:GetPosition()
+  local enemies = core.CopyTable(core.localUnits["Enemies"])
+  for _, enemy in pairs(enemies) do
+    local enemyPos = enemy:GetPosition()
+    local enemiesCloseCount = 0
+    for _, enemy2 in pairs(enemies) do
+      local enemy2Pos = enemy2:GetPosition()
+      local enemiesDistance = Vector3.Distance2DSq(enemyPos, enemy2Pos)
+      if enemiesDistance < distanceToSelf*distanceToSelf then
+          enemiesCloseCount = enemiesCloseCount + 1
+          if enemiesCloseCount >= count then
+            Echo("Enough close enemies")
+            return enemy:GetPosition()
+          end
+        end
+        Echo("No close enemies")
+      end
+    end
+  return nil
+end
+
+local healTargetPos = nil
 local function HealUtility(botBrain)
   local heal = skills.heal
   local me = core.unitSelf
   if heal and heal:CanActivate() then
-    if me:GetHealthPercent() < 0.5 and me:GetManaPercent() > 0.5 then
+    if me:GetHealthPercent() < 0.5 and me:GetHealthRegen() < 50 then
+      healTargetPos = me:GetPosition()
       return 60
+    end
+    local target = DetermineEnemiesCloseTogetherPosition(450, 3)
+    if me:GetManaPercent() > 0.5 and target then
+      healTargetPos = target
+      return 100
     end
   end
   return 0
 end
 
 local function HealExecute(botBrain)
+  local me = core.unitSelf
   local heal = skills.heal
-  local selfPos = core.unitSelf:GetPosition()
-  if heal and heal:CanActivate() then
-    return core.OrderAbilityPosition(botBrain, heal, selfPos)
+  local selfPos = me:GetPosition()
+  if heal and heal:CanActivate() and healTargetPos then
+    if me:GetHealthPercent() > 0.3 and me:GetHealthPercent() < 0.9 then
+      core.OrderMoveToPosClamp(botBrain, me, healTargetPos, false)
+    end
+    return core.OrderAbilityPosition(botBrain, heal, healTargetPos)
   end
   return false
 end
@@ -168,15 +261,20 @@ local function ManaUtility(botBrain)
   local me = core.unitSelf
   local myPos = me:GetPosition()
   if mana and mana:CanActivate() then
+
     local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
-    for enemy in enemies do
+    for _, enemy in pairs(enemies) do
       local enemyPos = enemy:GetPosition()
       local enemyRange = enemy:GetAttackRange()
       local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
-      if distanceEnemy < 2 * enemyRange then
+      if distanceEnemy < 1.2 * enemyRange * enemyRange then
         Echo("Too close to enemy")
         return 0
       end
+    end
+    Echo(me:GetManaRegen())
+    if me:GetManaRegen() > 50 then
+      return 0
     end
     return 60
   end
@@ -185,9 +283,9 @@ end
 
 local function ManaExecute(botBrain)
   local mana = skills.mana
-  local selfPos = core.unitSelf:GetPosition()
+  local me = core.unitSelf
   if mana and mana:CanActivate() then
-    return core.OrderAbilityPosition(botBrain, mana, selfPos)
+    return core.OrderAbilityEntity(botBrain, mana, me)
   end
   return false
 end
@@ -201,28 +299,11 @@ local stunTarget = nil
 local function StunUtility(botBrain)
   local stun = skills.stun
   local me = core.unitSelf
-  local myPos = me:GetPosition()
   if stun and stun:CanActivate() then
-    local allies = core.CopyTable(core.localUnits["AllyUnits"])
-    local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
-    for enemy in enemies do
-      local enemyPos = enemy:GetPosition()
-      local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
-      if distanceEnemy < 450 then
-        for ally in allies do
-          local closeAllyCount = 0
-          local allyPos = ally:GetPosition()
-          local allyDistanceFromEnemy = Vector3.Distance2DSq(enemyPos, allyPos)
-          if allyDistanceFromEnemy < 100 then
-            closeAllyCount = closeAllyCount + 1
-          end
-          if closeAllyCount >= 5
-            stunTarget = enemy
-            return 60
-          end
-        end
-        Echo("No close allies")
-      end
+    local target = DetermineEnemyWithOwnAlliesClose(me, 5)
+    if target then
+      stunTarget = target
+      return 60
     end
     return 0
   end
@@ -233,7 +314,7 @@ local function StunExecute(botBrain)
   local stun = skills.stun
   local selfPos = core.unitSelf:GetPosition()
   if stun and stun:CanActivate() and stunTarget then
-    return core.OrderAbilityPosition(botBrain, stun, stunTarget)
+    return core.OrderAbilityPosition(botBrain, stun, stunTarget:GetPosition())
   end
   return false
 end
@@ -242,5 +323,41 @@ StunBehavior["Utility"] = StunUtility
 StunBehavior["Execute"] = StunExecute
 StunBehavior["Name"] = "Stun"
 tinsert(behaviorLib.tBehaviors, StunBehavior)
+
+local teleportTarget = nil
+local function TeleportUtility(botBrain)
+  local teleport = skills.ulti
+  local me = core.unitSelf
+  local teleportDistance = 1000*1000
+  local enemyDistance = 900*900
+  if teleport and teleport:CanActivate() then
+    local target = DetermineTeleportPosition(teleportDistance, enemyDistance)
+    if target then
+      teleportTarget = target
+      return 60
+    end
+    return 0
+  end
+  return 0
+end
+
+local function TeleportExecute(botBrain)
+  local me = core.unitSelf
+  local teleport = skills.ulti
+  local myPos = me:GetPosition()
+  if teleport and teleport:CanActivate() and teleportTarget then
+    local distanceToWell = Vector3.Distance2DSq(myPos, core.allyWell:GetPosition())
+    if distanceToWell < 10000 and me:GetHealthPercent() > 0.7 and me:GetManaPercent() > 0.7 then
+      Echo("begin teleport")
+      return core.OrderAbilityPosition(botBrain, teleport, core.allyMainBaseStructure:GetPosition())
+    end
+  end
+  return false
+end
+local TeleportBehavior = {}
+TeleportBehavior["Utility"] = TeleportUtility
+TeleportBehavior["Execute"] = TeleportExecute
+TeleportBehavior["Name"] = "Teleport"
+tinsert(behaviorLib.tBehaviors, TeleportBehavior)
 
 BotEcho('finished loading nymphora_main')
