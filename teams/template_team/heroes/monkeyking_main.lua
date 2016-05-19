@@ -16,7 +16,7 @@ object.bAbilityCommands = true
 object.bOtherCommands = true
 
 object.bReportBehavior = false
-object.bDebugUtility = false
+object.bDebugUtility = true
 object.bDebugExecute = false
 
 object.logger = {}
@@ -99,7 +99,7 @@ function object:SkillBuild()
 end
 
 
-behaviorLib.StartingItems = {"Item_HealthPotion", "Item_ManaPotion", "Item_MinorTotem", "Item_RunesOfTheBlight", "Item_LoggersHatchet"}
+behaviorLib.StartingItems = {"2 Item_HealthPotion", "Item_ManaPotion", "Item_MinorTotem", "Item_RunesOfTheBlight", "Item_LoggersHatchet"}
 behaviorLib.LaneItems = {"Item_Bottle", "Item_Energizer",}
 behaviorLib.MidItems = {"Item_EnhancedMarchers", "Item_Dawnbringer", "Item_PowerSupply"}
 behaviorLib.LateItems = {"Item_DaemonicBreastplate", "Item_Protect"}
@@ -455,6 +455,134 @@ poleBehavior["Name"] = "Pole"
 tinsert(behaviorLib.tBehaviors, poleBehavior)
 
 
+local function funcFindItemsOverride(botBrain)
+    local bUpdated = object.FindItemsOld(botBrain)
+     
+		core.itemHealthPotion = nil
+    local inventory = core.unitSelf:GetInventory(true)
+    for slot = 1, 12, 1 do
+        local curItem = inventory[slot]
+        if curItem then
+						
+            if core.itemHealthPotion == nil and curItem:GetName() == "Item_HealthPotion" then
+                core.itemHealthPotion = core.WrapInTable(curItem)        
+                break
+            end
+        end
+    end
+
+end
+object.FindItemsOld = core.FindItems
+core.FindItems = funcFindItemsOverride
+
+local function HealthBehaviorUtility(botBrain)
+	local unitSelf = core.unitSelf
+	local myHealth = unitSelf:GetHealthPercent()
+
+	core.FindItems()
+
+	if core.itemHealthPotion and core.itemHealthPotion:CanActivate()  then
+		
+
+		return (1 - myHealth) * 100
+
+	end
+
+	return 1
+
+end
+
+
+
+function HealthBehaviorExecute(botBrain)
+	local bActionTaken = false
+	local unitSelf = core.unitSelf
+	local vecSelfPos = unitSelf:GetPosition()
+	
+	if core.itemHealthPot then
+		local vecRetreatDirection = behaviorLib.GetSafeDrinkDirection()
+		-- Check if it is safe to drink
+		if vecRetreatDirection then
+			bActionTaken = core.OrderMoveToPosClamp(botBrain, unitSelf, vecSelfPos + vecRetreatDirection * core.moveVecMultiplier, false)
+		else
+			BotEcho('Healing execute')
+			bActionTaken = core.OrderItemEntityClamp(botBrain, unitSelf, core.itemHealthPotion, unitSelf)
+			if bActionTaken then
+				usedHealthPotion = true
+			end
+		end
+	end
+	return bActionTaken
+end
+
+healthBehavior = {}
+healthBehavior["Utility"] = HealthBehaviorUtility
+healthBehavior["Execute"] = HealthBehaviorExecute
+healthBehavior["Name"] = "Healing"
+tinsert(behaviorLib.tBehaviors, healthBehavior)
+
+
+local function PositionSelfExecuteFix(botBrain)
+	local nCurrentTimeMS = HoN.GetGameTime()
+	local unitSelf = core.unitSelf
+	local vecMyPosition = unitSelf:GetPosition()
+	
+	if core.unitSelf:IsChanneling() then 
+		return
+	end
+
+	local vecDesiredPos = vecMyPosition
+	local unitTarget = nil
+	vecDesiredPos, unitTarget = behaviorLib.PositionSelfLogic(botBrain)
+
+	if vecDesiredPos then
+		behaviorLib.MoveExecute(botBrain, vecDesiredPos)
+	else
+		BotEcho("PositionSelfExecute - nil desired position")
+		return false
+	end
+
+end
+behaviorLib.PositionSelfBehavior["Execute"] = PositionSelfExecuteFix
+
+local function PushExecuteFix(botBrain)
+	if core.unitSelf:IsChanneling() then 
+		return
+	end
+
+	local unitSelf = core.unitSelf
+	local bActionTaken = false
+
+	--Attack creeps if we're in range
+	if bActionTaken == false then
+		local unitTarget = core.unitEnemyCreepTarget
+		if unitTarget then
+			local nRange = core.GetAbsoluteAttackRangeToUnit(unitSelf, unitTarget)
+			if unitSelf:GetAttackType() == "melee" then
+				--override melee so they don't stand *just* out of range
+				nRange = 250
+			end
+
+			if unitSelf:IsAttackReady() and core.IsUnitInRange(unitSelf, unitTarget, nRange) then
+				bActionTaken = core.OrderAttackClamp(botBrain, unitSelf, unitTarget)
+			end
+
+		end
+	end
+	
+	if bActionTaken == false then
+		local vecDesiredPos = behaviorLib.PositionSelfLogic(botBrain)
+		if vecDesiredPos then
+			bActionTaken = behaviorLib.MoveExecute(botBrain, vecDesiredPos)
+			
+		end
+	end
+	
+	if bActionTaken == false then
+		return false
+	end
+end
+behaviorLib.PushBehavior["Execute"] = PushExecuteFix
 
 ------------------------------------------------------
 --            onthink override                      --
