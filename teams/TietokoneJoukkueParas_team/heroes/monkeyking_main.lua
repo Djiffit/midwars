@@ -313,7 +313,7 @@ local function DashBehaviorUtility(botBrain)
 		return 0
 	end
 	
-	local target = selectTargetForSkill(skills.dash, pi / 4)
+	local target = selectTargetForSkill(skills.dash, pi / 8)
 
 	if target then
 		BotEcho('DashBehaviorUtility')
@@ -331,7 +331,7 @@ end
 
 local function DashBehaviorExecute(botBrain)
 	--[[BotEcho('DashBehaviorExecute')--]]
-	local target = selectTargetForSkill(skills.dash, pi / 4)
+	local target = selectTargetForSkill(skills.dash, pi / 8)
 	local dash = skills.dash
 
 
@@ -583,6 +583,44 @@ local function PushExecuteFix(botBrain)
 	end
 end
 behaviorLib.PushBehavior["Execute"] = PushExecuteFix
+
+local function HarassHeroExecuteOverride(botBrain)
+  local unitTarget = behaviorLib.heroTarget
+  if unitTarget == nil or not unitTarget:IsValid() then
+    return false
+  end
+
+  local unitSelf = core.unitSelf
+
+  local bActionTaken = false
+
+  if core.CanSeeUnit(botBrain, unitTarget) then
+    local dist = Vector3.Distance2D(unitSelf:GetPosition(), unitTarget:GetPosition())
+    local attkRange = core.GetAbsoluteAttackRangeToUnit(unitSelf, unitTarget)
+
+    local dash = skills.dash
+    local angle = core.HeadingDifference(unitSelf, unitTarget:GetPosition())
+
+    if dash and dash:CanActivate() and Vector3.Distance2D(unitSelf:GetPosition(), unitTarget:GetPosition()) < dash:GetRange() and angle < pi / 8  then
+
+      bActionTaken = core.OrderAbility(botBrain, dash)
+    end
+
+    local stun = skills.rock
+    if not bActionTaken and stun and stun:CanActivate() and Vector3.Distance2D(unitSelf:GetPosition(), unitTarget:GetPosition()) < 230 and angle < pi / 8 then
+
+      bActionTaken = core.OrderAbility(botBrain, stun)
+    end
+
+  end
+
+  if not bActionTaken then
+    return object.harassExecuteOld(botBrain)
+  end
+end
+object.harassExecuteOld = behaviorLib.HarassHeroBehavior["Execute"]
+behaviorLib.HarassHeroBehavior["Execute"] = HarassHeroExecuteOverride
+
 
 ------------------------------------------------------
 --            onthink override                      --
