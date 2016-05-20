@@ -15,7 +15,7 @@ object.bAbilityCommands = true
 object.bOtherCommands = true
 
 object.bReportBehavior = true
-object.bDebugUtility = true
+object.bDebugUtility = false
 object.bDebugExecute = false
 
 object.logger = {}
@@ -108,6 +108,33 @@ function object:SkillBuild()
   end
 end
 
+local function DetermineCloseEnemyTower(distance)
+  local me = core.unitSelf
+  local myPos = me:GetPosition()
+  --local allies = core.CopyTable(core.localUnits["AllyUnits"])
+  local towers = core.CopyTable(core.enemyTowers)
+  for _, tower in pairs(towers) do
+    local towerPos = tower:GetPosition()
+    local towerDistance = Vector3.Distance2DSq(myPos, towerPos)
+    if towerDistance < distance*distance then
+      --[[local closeAllyCount = 0
+      for _, ally in pairs(allies) do
+        local allyPos = ally:GetPosition()
+        local allyDistanceFromEnemy = Vector3.Distance2DSq(enemyPos, allyPos)
+        if allyDistanceFromEnemy < 900*900 then
+          closeAllyCount = closeAllyCount + 1
+        end
+        if closeAllyCount >= count then
+          return enemy
+          
+        end
+      end--]]
+      return tower
+    end
+  end
+  return nil
+end
+
 ------------------------------------------------------
 --            onthink override                      --
 -- Called every bot tick, custom onthink code here  --
@@ -132,9 +159,10 @@ function object:oncombateventOverride(EventData)
   self:oncombateventOld(EventData)
 
   local addBonus = 0
+  local me = core.unitSelf
   if EventData.Type == "Attack" then
     local unitTarget = EventData.TargetUnit
-    if unitTarget:IsHero() and unitTarget:IsStunned() then
+    if unitTarget:IsHero() and unitTarget:IsStunned() and not DetermineCloseEnemyTower(1000)  and me:GetHealthPercent() < 0.4 then
       addBonus = addBonus + 50
     end
   end
@@ -190,18 +218,46 @@ object.HealAtWellUtilityOld = behaviorLib.HealAtWellBehavior["Utility"]
 behaviorLib.HealAtWellBehavior["Utility"] = HealAtWellUtilityOverride
 --]]
 
+local function DetermineEnemyWithOwnAlliesClose(me, count, distance)
+  local myPos = me:GetPosition()
+  --local allies = core.CopyTable(core.localUnits["AllyUnits"])
+  local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
+  for _, enemy in pairs(enemies) do
+    local enemyPos = enemy:GetPosition()
+    local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
+    if distanceEnemy < distance*distance then
+      --[[local closeAllyCount = 0
+      for _, ally in pairs(allies) do
+        local allyPos = ally:GetPosition()
+        local allyDistanceFromEnemy = Vector3.Distance2DSq(enemyPos, allyPos)
+        if allyDistanceFromEnemy < 900*900 then
+          closeAllyCount = closeAllyCount + 1
+        end
+        if closeAllyCount >= count then
+          return enemy
+          
+        end
+      end--]]
+      return enemy
+    end
+  end
+  return nil
+end
+
 local function HealAtWellExecuteOverride(botBrain)
   local me = core.unitSelf
   local myPos = me:GetPosition()
   local wellPos = core.allyWell:GetPosition()
   local actionTaken
-  if Vector3.Distance2DSq(myPos, wellPos) < 100*100 then
+  if Vector3.Distance2DSq(myPos, wellPos) < 3000*3000 then
     actionTaken = object.HealAtWellExecuteOld(botBrain)
   end
   local myHealthPercent = me:GetHealthPercent()
   local myManaPercent = me:GetManaPercent()
   local destination = DetermineClosestSafePosition()
-  if myHealthPercent > 0.4 and myManaPercent > 0.3 and not actionTaken then
+  local closeEnemy = DetermineEnemyWithOwnAlliesClose(me, 1, 1300)
+  local closeEnemyTower = DetermineCloseEnemyTower(1500)
+  if not closeEnemy and not closeEnemyTower and myHealthPercent > 0.4 and myManaPercent > 0.2 and not actionTaken then
     actionTaken = core.OrderMoveToPosAndHoldClamp(botBrain, me, destination, false)
     if Vector3.Distance2DSq(myPos, destination) < 300*300 then
       local heal = skills.heal
@@ -231,31 +287,6 @@ local function DetermineTeleportPosition()
   end
   if smallestHealthTower then
     return smallestHealthTower:GetPosition()
-  end
-  return nil
-end
-
-local function DetermineEnemyWithOwnAlliesClose(me, count)
-  local myPos = me:GetPosition()
-  local allies = core.CopyTable(core.localUnits["AllyUnits"])
-  local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
-  for _, enemy in pairs(enemies) do
-    local enemyPos = enemy:GetPosition()
-    local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
-    if distanceEnemy < 900*900 then
-      local closeAllyCount = 0
-      for _, ally in pairs(allies) do
-        local allyPos = ally:GetPosition()
-        local allyDistanceFromEnemy = Vector3.Distance2DSq(enemyPos, allyPos)
-        if allyDistanceFromEnemy < 900*900 then
-          closeAllyCount = closeAllyCount + 1
-        end
-        if closeAllyCount >= count then
-          return enemy
-          
-        end
-      end
-    end
   end
   return nil
 end
@@ -333,7 +364,6 @@ local function ManaUtility(botBrain)
         return 0
       end
     end
-    Echo(me:GetManaRegen())
     if me:GetManaRegen() > 50 then
       return 0
     end
@@ -361,7 +391,7 @@ local function StunUtility(botBrain)
   local stun = skills.stun
   local me = core.unitSelf
   if stun and stun:CanActivate() then
-    local target = DetermineEnemyWithOwnAlliesClose(me, 1)
+    local target = DetermineEnemyWithOwnAlliesClose(me, 1, 900)
     if target then
       stunTarget = target
       return 60
@@ -393,7 +423,7 @@ local function TeleportUtility(botBrain)
     local target = DetermineTeleportPosition()
     if target then
       teleportTarget = target
-      return 60
+      return 110
     end
     return 0
   end
