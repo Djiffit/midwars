@@ -51,7 +51,7 @@ object.heroName = 'Hero_Valkyrie'
 behaviorLib.StartingItems  = 
 			{"Item_Bottle"}
 behaviorLib.LaneItems  = 
-			{ "Item_PowerSupply", "Item_Steamboots", "Item_HomecomingStone"}
+			{ "Item_PowerSupply", "Item_Steamboots"}
 behaviorLib.MidItems  = 
 			{ "Item_Soulscream", "Item_Energizer", "Item_Lightbrand"}
 behaviorLib.LateItems  = 
@@ -62,8 +62,8 @@ behaviorLib.LateItems  =
 
 -- Skillbuildi
 object.tSkills = {
-	2, 1, 0, 0, 0,
-	1, 0, 1, 1, 3, 
+	2, 1, 1, 0, 1,
+	0, 1, 0, 0, 3, 
 	3, 2, 2, 2, 4,
 	3, 4, 4, 4, 4,
 	4, 4, 4, 4, 4,
@@ -123,6 +123,19 @@ end
 function object:onthinkOverride(tGameVariables)
   self:onthinkOld(tGameVariables)
 
+end
+
+-- Check if jumping under tower range  !! ! ! !!
+
+local function isjumpundertower()
+	local tTowers = core.CopyTable(core.enemyTowers)
+	for _, tower in pairs(tTowers) do
+  if Vector3.Distance2DSq((core.unitSelf:GetPosition() + core.unitSelf:GetHeading()*skills.leap:GetRange()), tower:GetPosition()) < 700*700 then
+		return false
+  end
+	return true
+end
+
   -- custom code here
 end
 object.onthinkOld = object.onthink
@@ -170,7 +183,6 @@ local bDebugLines = true
 			end 
 		end
 	end
-	BotEcho("oy m8!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 	return true
 end
 
@@ -192,7 +204,6 @@ local function NoObstructions(pos1, pos2)
     end
   end
   core.DrawDebugLine(pos1, pos2, "green")
-	BotEcho("oy m8!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
   return true
 end
 	
@@ -291,8 +302,7 @@ local function HarassHeroExecuteOverride(botBrain)
 
 	if core.CanSeeUnit(botBrain, unitTarget) then
 		if targetstunned then
-			BotEcho("COMBO???? 111111111111111111111111")
-			if skills.leap:CanActivate() and skills.call:CanActivate() and core.unitSelf:GetLevel() > 5 and unitSelf:GetManaPercent() and angle < 0.3  then
+			if skills.leap:CanActivate() and isjumpundertower() and skills.call:CanActivate() and core.unitSelf:GetLevel() > 5 and unitSelf:GetManaPercent() and angle < 0.3  then
 				local range = skills.leap:GetRange() * skills.leap:GetRange() + 250 * 250
 				if Vector3.Distance2DSq(unitSelf:GetPosition(), unitTarget:GetPosition()) < range then
 					bActionTaken = core.OrderAbility(botBrain, skills.leap)
@@ -301,18 +311,14 @@ local function HarassHeroExecuteOverride(botBrain)
 		end
 		if not bActionTaken and skills.call:CanActivate() and Vector3.Distance2DSq(unitSelf:GetPosition(), unitTarget:GetPosition()) < 250*250 then
 			bActionTaken = core.OrderAbility(botBrain, skills.call)
-			BotEcho("COMBO???? 333333333333333333333")
 		end
-		if not bActionTaken and core.unitSelf:GetHealthPercent() > unitTarget:GetHealthPercent() * 1.3 and targetstunned and skills.call:CanActivate() and angle < 0.3  and Vector3.Distance2DSq(unitSelf:GetPosition(), unitTarget:GetPosition()) < 1000*1000 and Vector3.Distance2DSq(unitSelf:GetPosition(), unitTarget:GetPosition()) > 500*500  then
+		if not bActionTaken and core.unitSelf:GetHealthPercent() > unitTarget:GetHealthPercent() * 2 and targetstunned and skills.call:CanActivate() and angle < 0.3  and Vector3.Distance2DSq(unitSelf:GetPosition(), unitTarget:GetPosition()) < 1000*1000 and Vector3.Distance2DSq(unitSelf:GetPosition(), unitTarget:GetPosition()) > 500*500  then
 			bActionTaken = core.OrderAbility(botBrain, skills.leap)
-			BotEcho("COMBO???? 22222222222222222222")
+		end
+		if not bActionTaken and isjumpundertower() and core.unitSelf:GetHealthPercent() > unitTarget:GetHealthPercent() and targetstunned and skills.call:CanActivate() and angle < 0.3  and Vector3.Distance2DSq(unitSelf:GetPosition(), unitTarget:GetPosition()) < 1000*1000 and Vector3.Distance2DSq(unitSelf:GetPosition(), unitTarget:GetPosition()) > 500*500  then
+			bActionTaken = core.OrderAbility(botBrain, skills.leap)
 		end
 	end
-  local towers = core.CopyTable(core.localUnits["EnemyTowers"])
-  BotEcho("towers")
-  if towers and EnemiesNear(core.unitSelf:GetPosition(), towers, 2000, 0) then
-    BotEcho("NEAR TOWER NEAR TOWER DANGER DANGER")
-  end
 	if not bActionTaken then
 		return object.harassExecuteOld(botBrain)
 	end
@@ -373,11 +379,11 @@ function CallUtility(botBrain)
 		local currentMana = unitSelf:GetManaPercent()
 		if currentMana * 100 > 66.6 then
 			if EnemiesNear(unitSelf:GetPosition(), creepsNearby, range, 2) then
-				return 35
+				return 21
 			end
 		end
 		if EnemiesNear(unitSelf:GetPosition(), heroesNearby, range, 1) then
-			return 50
+			
 		end
 	end
 	return 1
@@ -420,7 +426,6 @@ local function RetreatFromThreatExecuteOverride(botBrain)
 		if angle < 0.5 and EnemiesNear(unitSelf:GetPosition(), heroes, 400, 0) and leap:CanActivate() then
 			for index, enemy in pairs(heroes) do
 				if leap:CanActivate() then
-					BotEcho("JUmp away now go m ister mister ")
 					bActionTaken = core.OrderAbility(botBrain, leap)
 				end
 			end
@@ -434,7 +439,6 @@ local function RetreatFromThreatExecuteOverride(botBrain)
 							dangerdistance = Vector3.Distance2DSq(unitSelf:GetPosition(), enemy:GetPosition())
 							local units = core.CopyTable(core.localUnits["EnemyCreeps"])
 							if NoObstructions(unitSelf:GetPosition(), enemy:GetPosition()) then
-								BotEcho("ARROW???????????????????????????????????????????????????????????????")
 								bActionTaken = core.OrderAbilityPosition(botBrain, arrow, enemy:GetPosition())
 							end
 						end
