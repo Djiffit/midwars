@@ -89,7 +89,298 @@ function object:SkillBuild()
   else
     skills.attributeBoost:LevelUp()
   end
+
 end
+
+local heroWeight = 3
+
+local function myDistanceTo(unitEnemy) 
+
+	local myPos = core.unitSelf:GetPosition()
+	local enemyPos = unitEnemy:GetPosition()
+
+	return Vector3.Distance2D(enemyPos, myPos)
+
+end
+
+
+
+local function allyCount(range)
+	local count = 0
+	local tLocalEnemyCreeps = core.CopyTable(core.localUnits["AllyCreeps"])
+	local tLocalEnemyHeroes = core.CopyTable(core.localUnits["AllyHeroes"])
+
+	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
+		if myDistanceTo(unitEnemy) < range then
+			count = count + heroWeight
+		end
+	end
+
+	for _, unitEnemy in pairs(tLocalEnemyCreeps) do
+		if myDistanceTo(unitEnemy) < range then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+
+
+local function enemyCount(range)
+	local count = 0
+	local tLocalEnemyCreeps = core.CopyTable(core.localUnits["EnemyCreeps"])
+	local tLocalEnemyHeroes = core.CopyTable(core.localUnits["EnemyHeroes"])
+
+	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
+		if myDistanceTo(unitEnemy) < range then
+			count = count + heroWeight
+		end
+	end
+
+	for _, unitEnemy in pairs(tLocalEnemyCreeps) do
+		if myDistanceTo(unitEnemy) < range then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+
+
+
+
+
+
+
+
+
+local function CustomHarassUtilityOverride(hero)
+	local unitSelf = core.unitSelf
+	local myHealth = unitSelf:GetHealthPercent()
+	local otherHealth = hero:GetHealthPercent()
+	local allyCount = allyCount(600)
+	local enemyCount = enemyCount(600)
+
+  local nUtility = 20 * myHealth + allyCount - enemyCount
+
+
+	if 0.8 * myHealth > otherHealth then
+
+		nUtility = nUtility + 20
+
+	end
+
+	if myHealth < 0.6 * otherHealth then
+
+		nUtility = nUtility - 50
+
+	end
+
+  if core.GetClosestEnemyTower(unitSelf:GetPosition(), 600) and allyCount < heroWeight + 1 then
+    nUtility = nUtility - 150
+  end
+
+
+  if hero:IsChanneling() or hero:IsDisarmed() or hero:IsImmobilized() or hero:IsPerplexed() or hero:IsSilenced() or hero:IsStunned() or unitSelf:IsStealth() then
+    nUtility = nUtility + 20
+  end
+
+
+  if skills.hold:CanActivate() then
+    nUtility = nUtility + 20
+  end
+
+
+  if skills.whip:CanActivate() then
+    nUtility = nUtility + 30
+  end
+
+  if skills.ulti:CanActivate() then
+    nUtility = nUtility + 50
+  end
+
+  return nUtility
+
+end
+behaviorLib.CustomHarassUtility = CustomHarassUtilityOverride
+
+
+
+local function findNearestHero(angle) 
+	local tLocalEnemyHeroes = core.CopyTable(core.localUnits["EnemyHeroes"])
+	local dist = 999999999
+
+	local found = nil
+
+	for _, unitEnemy in pairs(tLocalEnemyHeroes) do
+		
+		local distToEnemy = myDistanceTo(unitEnemy)
+	    	    	    
+		local angleDiff = core.HeadingDifference(core.unitSelf, unitEnemy:GetPosition())
+		
+		if dist > distToEnemy and angleDiff < angle then
+
+			dist = distToEnemy
+			found = unitEnemy
+	    
+		end
+
+	end
+
+	return found
+
+end
+
+
+
+
+local function findNearestEnemyCreep(angle) 
+	local tLocalEnemyCreeps = core.CopyTable(core.localUnits["EnemyCreeps"])
+	local dist = 999999999
+	local found = nil
+	for _, unitEnemy in pairs(tLocalEnemyCreeps) do
+		
+
+	local distToEnemy = myDistanceTo(unitEnemy)
+	local angleDiff = core.HeadingDifference(core.unitSelf, unitEnemy:GetPosition())
+		
+		if dist > distToEnemy and angleDiff < angle then
+
+			dist = distToEnemy
+			found = unitEnemy
+    
+    		end
+
+	end
+
+	return found
+
+end
+
+
+
+
+local function HoldBehaviorUtility(botBrain)
+
+	local enemyHero = findNearestHero(pi)
+	if not enemyHero then
+		return 0
+	end
+
+	
+	local dist = myDistanceTo(enemyHero)
+	local hold = skills.hold
+
+	if hold and hold:CanActivate() and dist < hold:GetRange() then
+		--BotEcho('Hold')
+		return 60
+
+	end
+	
+	return 0
+
+
+end
+
+local function HoldBehaviorExecute(botBrain)
+	
+
+	local enemyHero = findNearestHero(pi)
+	if not enemyHero then
+		return false
+	end
+
+
+	local dist = myDistanceTo(enemyHero)
+	local hold = skills.hold
+
+	--[[
+	BotEcho('Distance to hero: ' .. dist)
+	BotEcho('Range: ' .. hold:GetRange())
+
+	--]]
+	if hold and hold:CanActivate() and dist < hold:GetRange()  then
+		--BotEcho('Hold execute')
+		return core.OrderAbilityEntity(botBrain, hold, enemyHero)
+
+	end
+	
+	return false
+
+
+
+end
+
+
+holdBehavior = {}
+holdBehavior["Utility"] = HoldBehaviorUtility
+holdBehavior["Execute"] = HoldBehaviorExecute
+holdBehavior["Name"] = "Hold"
+tinsert(behaviorLib.tBehaviors, holdBehavior)
+
+
+
+
+local function ShowBehaviorUtility(botBrain)
+
+	local enemyHero = findNearestHero(pi)
+	if not enemyHero then
+		return 0
+	end
+
+
+
+	local dist = myDistanceTo(enemyHero)
+	local show = skills.show
+	--[[
+	BotEcho('Distance to hero: ' .. dist)
+	BotEcho('Range: ' .. show:GetRange())
+	
+
+	BotEcho('show')
+	--]]
+	if show and show:CanActivate() and dist < show:GetRange() then
+		
+		return 70
+
+	end
+	
+	return 0
+
+
+end
+
+local function ShowBehaviorExecute(botBrain)
+	
+
+	local enemyHero = findNearestHero(pi)
+	if not enemyHero then
+		return false
+	end
+
+
+	local dist = myDistanceTo(enemyHero)
+	local show = skills.show
+	--[[BotEcho('Distance to hero: ' .. dist)--]]
+	--[[BotEcho('Range: ' .. show:GetRange())--]]
+	if show and show:CanActivate() and dist < show:GetRange()  then
+		--[[BotEcho('show execute')--]]
+		return core.OrderAbilityEntity(botBrain, show, enemyHero)
+
+	end
+	
+	return false
+
+
+
+end
+
+
+showBehavior = {}
+showBehavior["Utility"] = ShowBehaviorUtility
+showBehavior["Execute"] = ShowBehaviorExecute
+showBehavior["Name"] = "show"
+tinsert(behaviorLib.tBehaviors, showBehavior)
 
 ------------------------------------------------------
 --            onthink override                      --
