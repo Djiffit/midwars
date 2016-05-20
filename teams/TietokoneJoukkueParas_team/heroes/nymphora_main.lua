@@ -52,9 +52,9 @@ object.heroName = 'Hero_Fairy'
 -- Items
 --------------------------------
 
-behaviorLib.StartingItems = {"4 Item_ManaPotion", "6 Item_HealthPotion", "Item_HomecomingStone", "Item_Bottle", "Item_EnhancedMarchers"}
+behaviorLib.StartingItems = {"3 Item_MinorTotem", "Item_PretendersCrown", "Item_ManaBattery"}
 behaviorLib.EarlyItems = {}
-behaviorLib.MidItems = {"Item_Strength5", "Item_Shield2", "Item_Morph", "Item_Silence"}
+behaviorLib.MidItems = {"Item_PowerSupply", "Item_Bottle", "Item_Strength5", "Item_Shield2", "Item_Morph", "Item_Silence"}
 behaviorLib.LateItems = {}
 
 --------------------------------
@@ -203,6 +203,18 @@ local function DetermineClosestSafePosition()
   end
 end
 
+local function NextItemShouldBeBought(botbrain)
+  local gold = botbrain:GetGold()
+  local time = GetTime()
+  Echo(gold)
+  Echo(time/6000000)
+  if gold > 800 and time/6000000 < 10 then
+    return true
+  elseif gold > 2000 and time/6000000 > 10 then
+    return true
+  end
+  return false
+end
 
 --[[
 local function HealAtWellUtilityOverride(botbrain)
@@ -248,9 +260,18 @@ local function HealAtWellExecuteOverride(botBrain)
   local me = core.unitSelf
   local myPos = me:GetPosition()
   local wellPos = core.allyWell:GetPosition()
-  local actionTaken
-  if Vector3.Distance2DSq(myPos, wellPos) < 3000*3000 then
-    actionTaken = object.HealAtWellExecuteOld(botBrain)
+  local actionTaken = false
+  Echo("distance to well")
+  Echo(Vector3.Distance2DSq(myPos, wellPos))
+  if Vector3.Distance2DSq(myPos, wellPos) < 1000*1000 then
+    Echo("close to well")
+    object.HealAtWellExecuteOld(botBrain)
+    actionTaken = true
+  end
+  if NextItemShouldBeBought(botBrain) then
+    Echo("buying next item")
+    object.HealAtWellExecuteOld(botBrain)
+    actionTaken = true
   end
   local myHealthPercent = me:GetHealthPercent()
   local myManaPercent = me:GetManaPercent()
@@ -258,13 +279,16 @@ local function HealAtWellExecuteOverride(botBrain)
   local closeEnemy = DetermineEnemyWithOwnAlliesClose(me, 1, 1300)
   local closeEnemyTower = DetermineCloseEnemyTower(1500)
   if not closeEnemy and not closeEnemyTower and myHealthPercent > 0.4 and myManaPercent > 0.2 and not actionTaken then
-    actionTaken = core.OrderMoveToPosAndHoldClamp(botBrain, me, destination, false)
+    Echo("going to closest tower")
+    core.OrderMoveToPosAndHoldClamp(botBrain, me, destination, false)
     if Vector3.Distance2DSq(myPos, destination) < 300*300 then
       local heal = skills.heal
       core.OrderAbilityPosition(botBrain, heal, me:GetPosition())
     end
+    actionTaken = true
   end
   if not actionTaken then
+    Echo("default behavior")
     object.HealAtWellExecuteOld(botBrain)
   end
 end
@@ -419,7 +443,9 @@ local teleportTarget = nil
 local function TeleportUtility(botBrain)
   local teleport = skills.ulti
   local me = core.unitSelf
-  if teleport and teleport:CanActivate() then
+  local myPos = me:GetPosition()
+  local distanceToWell = Vector3.Distance2DSq(myPos, core.allyWell:GetPosition())
+  if teleport and teleport:CanActivate() and distanceToWell < 10000 and me:GetHealthPercent() > 0.7 and me:GetManaPercent() > 0.7 then
     local target = DetermineTeleportPosition()
     if target then
       teleportTarget = target
@@ -431,14 +457,9 @@ local function TeleportUtility(botBrain)
 end
 
 local function TeleportExecute(botBrain)
-  local me = core.unitSelf
   local teleport = skills.ulti
-  local myPos = me:GetPosition()
   if teleport and teleport:CanActivate() and teleportTarget then
-    local distanceToWell = Vector3.Distance2DSq(myPos, core.allyWell:GetPosition())
-    if distanceToWell < 10000 and me:GetHealthPercent() > 0.7 and me:GetManaPercent() > 0.7 then
-      return core.OrderAbilityPosition(botBrain, teleport, teleportTarget)
-    end
+    return core.OrderAbilityPosition(botBrain, teleport, teleportTarget)
   end
   return false
 end
