@@ -16,7 +16,7 @@ object.bAbilityCommands = true
 object.bOtherCommands = true
 
 object.bReportBehavior = false
-object.bDebugUtility = true
+object.bDebugUtility = false
 object.bDebugExecute = false
 
 object.logger = {}
