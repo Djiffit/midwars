@@ -14,7 +14,7 @@ object.bAttackCommands = true
 object.bAbilityCommands = true
 object.bOtherCommands = true
 
-object.bReportBehavior = true
+object.bReportBehavior = false
 object.bDebugUtility = false
 object.bDebugExecute = false
 
@@ -33,8 +33,9 @@ runfile "bots/botbraincore.lua"
 runfile "bots/eventsLib.lua"
 runfile "bots/metadata.lua"
 runfile "bots/behaviorLib.lua"
+runfile "bots/teams/default/generics.lua"
 
-local core, eventsLib, behaviorLib, metadata, skills = object.core, object.eventsLib, object.behaviorLib, object.metadata, object.skills
+local core, eventsLib, behaviorLib, metadata, skills, generics = object.core, object.eventsLib, object.behaviorLib, object.metadata, object.skills, object.generics
 
 local print, ipairs, pairs, string, table, next, type, tinsert, tremove, tsort, format, tostring, tonumber, strfind, strsub
   = _G.print, _G.ipairs, _G.pairs, _G.string, _G.table, _G.next, _G.type, _G.table.insert, _G.table.remove, _G.table.sort, _G.string.format, _G.tostring, _G.tonumber, _G.string.find, _G.string.sub
@@ -96,37 +97,34 @@ behaviorLib.LaneItems = {"Item_Marchers", "Item_EnhancedMarchers", "Item_PowerSu
 behaviorLib.MidItems = {"Item_PortalKey", "Item_MagicArmor2"}
 behaviorLib.LateItems = {"Item_BehemothsHeart"}
 
-------------------------------------------------------
---            onthink override                      --
--- Called every bot tick, custom onthink code here  --
-------------------------------------------------------
--- @param: tGameVariables
--- @return: none
-function object:onthinkOverride(tGameVariables)
-  self:onthinkOld(tGameVariables)
 
-  -- custom code here
-end
-object.onthinkOld = object.onthink
-object.onthink = object.onthinkOverride
-
-----------------------------------------------
---            oncombatevent override        --
--- use to check for infilictors (fe. buffs) --
-----------------------------------------------
--- @param: eventdata
--- @return: none
+local unitHooked = nil
 function object:oncombateventOverride(EventData)
   self:oncombateventOld(EventData)
 
-  -- custom code here
+  if EventData.InflictorName == "Projectile_Devourer_Ability1" and EventData.SourceUnit:GetUniqueID() == core.unitSelf:GetUniqueID() then
+    if EventData.Type == "Attack" then
+      local victim = EventData.TargetUnit
+      if victim:IsHero() then
+        core.AllChat("YOU'RE MINE!")
+        unitHooked = victim
+      end
+    elseif EventData.Type == "Projectile_Target" and EventData.TargetUnit:GetUniqueID() == core.unitSelf:GetUniqueID() then
+      if unitHooked then
+        local teamBotBrain = core.teamBotBrain
+        if teamBotBrain.SetTeamTarget then
+          teamBotBrain:SetTeamTarget(unitHooked)
+        end
+      end
+      unitHooked = nil
+    end
+  end
 end
--- override combat event trigger function.
 object.oncombateventOld = object.oncombatevent
 object.oncombatevent = object.oncombateventOverride
 
 -- Harass
-local function CustomHarassUtilityOverride(hero)
+local function CustomHarassUtilityOverride(target)
   local nUtility = 0
 
   if skills.hook:CanActivate() then
@@ -137,7 +135,7 @@ local function CustomHarassUtilityOverride(hero)
     nUtility = nUtility + 40
   end
 
-  return nUtility
+  return generics.CustomHarassUtility(target) + nUtility
 end
 behaviorLib.CustomHarassUtility = CustomHarassUtilityOverride
 
@@ -218,52 +216,29 @@ end
 object.harassExecuteOld = behaviorLib.HarassHeroBehavior["Execute"]
 behaviorLib.HarassHeroBehavior["Execute"] = HarassHeroExecuteOverride
 
-local function IsFreeLine(pos1, pos2)
-  core.DrawDebugLine(pos1, pos2, "yellow")
-  local tAllies = core.CopyTable(core.localUnits["AllyUnits"])
-  local tEnemies = core.CopyTable(core.localUnits["EnemyCreeps"])
-  local distanceLine = Vector3.Distance2DSq(pos1, pos2)
-  local x1, x2, y1, y2 = pos1.x, pos2.x, pos1.y, pos2.y
-  local spaceBetween = 50 * 50
-  for _, ally in pairs(tAllies) do
-    local posAlly = ally:GetPosition()
-    local x3, y3 = posAlly.x, posAlly.y
-    local calc = x1*y2 - x2*y1 + x2*y3 - x3*y2 + x3*y1 - x1*y3
-    local calc2 = calc * calc
-    local actual = calc2 / distanceLine
-    if actual < spaceBetween then
-      core.DrawXPosition(posAlly, "red", 25)
-      return false
-    end
-  end
-  for _, creep in pairs(tEnemies) do
-    local posCreep = creep:GetPosition()
-    local x3, y3 = posCreep.x, posCreep.y
-    local calc = x1*y2 - x2*y1 + x2*y3 - x3*y2 + x3*y1 - x1*y3
-    local calc2 = calc * calc
-    local actual = calc2 / distanceLine
-    if actual < spaceBetween then
-      core.DrawXPosition(posCreep, "red", 25)
-      return false
-    end
-  end
-  core.DrawDebugLine(pos1, pos2, "green")
-  return true
-end
+
 
 local function DetermineHookTarget(hook)
   local tLocalEnemies = core.CopyTable(core.localUnits["EnemyHeroes"])
   local maxDistance = hook:GetRange()
   local maxDistanceSq = maxDistance * maxDistance
   local myPos = core.unitSelf:GetPosition()
+  local teamBotBrain = core.teamBotBrain
+  if teamBotBrain.GetTeamTarget then
+    local teamTarget = teamBotBrain:GetTeamTarget()
+    if teamTarget then
+      if generics.IsFreeLine(myPos, teamTarget:GetPosition()) then
+        return teamTarget
+      end
+    end
+  end
   local unitTarget = nil
   local distanceTarget = 999999999
   for _, unitEnemy in pairs(tLocalEnemies) do
     local enemyPos = unitEnemy:GetPosition()
     local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
-    core.DrawXPosition(enemyPos, "yellow", 50)
     if distanceEnemy < maxDistanceSq then
-      if distanceEnemy < distanceTarget and IsFreeLine(myPos, enemyPos) then
+      if distanceEnemy < distanceTarget and generics.IsFreeLine(myPos, enemyPos) then
         unitTarget = unitEnemy
         distanceTarget = distanceEnemy
       end
@@ -279,7 +254,6 @@ local function HookUtility(botBrain)
     local unitTarget = DetermineHookTarget(hook)
     if unitTarget then
       hookTarget = unitTarget:GetPosition()
-      core.DrawXPosition(hookTarget, "green", 50)
       return 60
     end
   end
@@ -305,7 +279,7 @@ local function HasEnemiesInRange(unit, range)
   local rangeSq = range * range
   local myPos = unit:GetPosition()
   for _, enemy in pairs(enemies) do
-    if Vector3.Distance2DSq(enemy:GetPosition(), myPos) < rangeSq then
+    if not enemy:IsMagicImmune() and Vector3.Distance2DSq(enemy:GetPosition(), myPos) < rangeSq then
       return true
     end
   end
