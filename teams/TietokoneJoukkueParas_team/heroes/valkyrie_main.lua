@@ -48,6 +48,7 @@ local Clamp = core.Clamp
 BotEcho('loading valkyrie_main...')
 
 object.heroName = 'Hero_Valkyrie'
+--[[
 behaviorLib.StartingItems  = 
 			{"Item_Bottle"}
 behaviorLib.LaneItems  = 
@@ -56,6 +57,16 @@ behaviorLib.MidItems  =
 			{ "Item_Soulscream", "Item_Energizer", "Item_Lightbrand"}
 behaviorLib.LateItems  = 
 			{"Item_Dawnbringer", "Item_ManaBurn1 2", "Item_Weapon3", "Item_Evasion"}
+]]--
+
+behaviorLib.StartingItems  = 
+			{"Item_HealthPotion"}
+behaviorLib.LaneItems  = 
+			{ "Item_HealthPotion 5555", "Item_HealthPotion 5555"}
+behaviorLib.MidItems  = 
+			{ "Item_HealthPotion 5555", "Item_HealthPotion 5555", "Item_HealthPotion 5555"}
+behaviorLib.LateItems  = 
+			{"Item_HealthPotion 5555", "Item_HealthPotion 5552", "Item_HealthPotion 5555","Item_HealthPotion 5555","Item_HealthPotion 5555", "Item_HealthPotion 5"}
 
 -- tavarat
 
@@ -122,9 +133,7 @@ end
 -- @return: none
 function object:onthinkOverride(tGameVariables)
   self:onthinkOld(tGameVariables)
-
 end
-
 -- Check if jumping under tower range  !! ! ! !!
 
 local function isjumpundertower()
@@ -168,23 +177,6 @@ object.oncombateventOld = object.oncombatevent
 object.oncombatevent = object.oncombateventOverride
 
 -- CHECK IF SOMETHING IS BLOCKING THE JAVELIN ( ARROW ) 
-function NoObstructionsMy(me, enemy, obstructions, size)
-local bDebugLines = true
-	local path = Vector3.Distance2DSq(me, enemy)
-	local blocking = 0
-	for _, blocker in pairs(obstructions) do
-		if blocker and blocker:GetPosition() ~= enemy and Vector3.Distance2DSq(me, blocker:GetPosition()) < path then
-			local point = core.GetFurthestPointOnLine(blocker:GetPosition(), me, enemy)
-			local blockerRadius = blocker:GetBoundsRadius()
-			local blockerradiussq = blockerRadius * blockerRadius
-			if Vector3.Distance2DSq(blocker:GetPosition(), point) <= 2000 + blockerradiussq then
-				blocking = blocking + 1
-				return false
-			end 
-		end
-	end
-	return true
-end
 
 local function NoObstructions(pos1, pos2)
   core.DrawDebugLine(pos1, pos2, "yellow")
@@ -206,6 +198,42 @@ local function NoObstructions(pos1, pos2)
   core.DrawDebugLine(pos1, pos2, "green")
   return true
 end
+
+local function CourierUtility(botBrain)
+  if core.unitSelf:GetAbility(12):CanActivate() then
+	return 100
+  end 
+return -100
+end
+
+local function CourierExecute(botBrain)
+  BotEcho("cori")
+  core.OrderAbility(botBrain, core.unitSelf:GetAbility(12), false)
+  local bActionTaken = true
+end
+
+CourierBehavior = {}
+CourierBehavior["Utility"] = CourierUtility
+CourierBehavior["Execute"] = CourierExecute
+CourierBehavior["Name"] = "Courier"
+tinsert(behaviorLib.tBehaviors, CourierBehavior)
+
+local function ShopUtilityOverride(botBrain)
+  if botBrain:GetGold() > 1000 then
+	return 100
+  end 
+  return -100
+end
+
+local function ShopExecuteOverride(botBrain)
+  local bActionTaken = behaviorLib.ShopExecute(botBrain)
+end
+
+ShopBehavior = {}
+ShopBehavior["Utility"] = ShopUtilityOverride
+ShopBehavior["Execute"] = ShopExecuteOverride
+ShopBehavior["Name"] = "Shop"
+tinsert(behaviorLib.tBehaviors, ShopBehavior)
 	
 -------------999999999---------------99999999------------	
 ---------------	-- JA VE LI N AKA AARROW----------------
@@ -333,7 +361,6 @@ behaviorLib.HarassHeroBehavior["Execute"] = HarassHeroExecuteOverride
 -- Prism
 --------------------------------------------------------------
 function PrismUtility(botBrain)
-  
 	local ulti = skills.ulti
 	if ulti:CanActivate() then
 		local allies = HoN.GetHeroes(core.myTeam)
@@ -401,12 +428,6 @@ CallBehavior["Utility"] = CallUtility
 CallBehavior["Execute"] = CallExecute
 CallBehavior["Name"] = "Call"
 tinsert(behaviorLib.tBehaviors, CallBehavior)
-
-
-
---------------------------------------------------------------
--- Leeaaappeerr
---------------------------------------------------------------
 
 
 --------------------------------------------------------------
