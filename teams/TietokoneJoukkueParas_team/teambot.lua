@@ -42,11 +42,12 @@ function object:SetTeamTarget(target)
 	local oldTarget = self:GetTeamTarget()
 
 	if not oldTarget then
+		Echo("team target set")
 		teamHeroTarget = target
 		return
 	end
 
-	
+	Echo("using better team target")
 	teamHeroTarget = BetterTarget(oldTarget, target)
 
 end
@@ -87,6 +88,17 @@ local function TargetUtility(targetHero)
 
 	return util
 
+end
+
+
+local STATE_IDLE      = 0
+local STATE_GROUPING  = 1
+local STATE_PUSHING   = 2
+object.nPushState = STATE_IDLE
+function object:GroupAndPushLogic()
+  self:BuildLanes()
+  self.nPushState = STATE_PUSHING
+  self.unitPushTarget = core.enemyMainBaseStructure
 end
 
 

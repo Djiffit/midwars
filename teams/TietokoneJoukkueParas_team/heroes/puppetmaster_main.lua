@@ -33,6 +33,7 @@ runfile "bots/botbraincore.lua"
 runfile "bots/eventsLib.lua"
 runfile "bots/metadata.lua"
 runfile "bots/behaviorLib.lua"
+runfile "bots/teams/TietokoneJoukkueParas_team/generics.lua"
 
 local core, eventsLib, behaviorLib, metadata, skills = object.core, object.eventsLib, object.behaviorLib, object.metadata, object.skills
 
@@ -47,6 +48,12 @@ local Clamp = core.Clamp
 BotEcho('loading puppetmaster_main...')
 
 object.heroName = 'Hero_PuppetMaster'
+
+
+behaviorLib.StartingItems = {"3 Item_MinorTotem", "Item_PretendersCrown", "Item_ManaBattery"}
+behaviorLib.EarlyItems = {}
+behaviorLib.MidItems = {"Item_PowerSupply", "Item_Bottle", "Item_Strength5", "Item_Astrolabe"}
+behaviorLib.LateItems = {}
 
 --------------------------------
 -- Lanes
@@ -370,11 +377,7 @@ local function ShowBehaviorExecute(botBrain)
 	end
 	
 	return false
-
-
-
 end
-
 
 showBehavior = {}
 showBehavior["Utility"] = ShowBehaviorUtility

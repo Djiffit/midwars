@@ -15,7 +15,7 @@ object.bAbilityCommands = true
 object.bOtherCommands = true
 
 object.bReportBehavior = true
-object.bDebugUtility = false
+object.bDebugUtility = true
 object.bDebugExecute = false
 
 object.logger = {}
@@ -55,7 +55,7 @@ object.heroName = 'Hero_Fairy'
 
 behaviorLib.StartingItems = {"3 Item_MinorTotem", "Item_PretendersCrown", "Item_ManaBattery"}
 behaviorLib.EarlyItems = {}
-behaviorLib.MidItems = {"Item_PowerSupply", "Item_Bottle", "Item_Strength5", "Item_Shield2", "Item_Morph", "Item_Silence"}
+behaviorLib.MidItems = {"Item_PowerSupply", "Item_Bottle", "Item_Intelligence5", "Item_BrainOfMaliken", "Item_Replenish", "Item_Strength5", "Item_Shield2", "Item_Morph", "Item_Silence"}
 behaviorLib.LateItems = {}
 
 --------------------------------
@@ -67,7 +67,7 @@ core.tLanePreferences = {Jungle = 0, Mid = 0, ShortSolo = 0, LongSolo = 0, Short
 -- Skills
 --------------------------------
 object.tSkills = {
-  2, 0, 1, 0, 0,
+  2, 1, 0, 0, 0,
   3, 0, 1, 1, 1,
   3, 2, 2, 2, 4,
   3, 4, 4, 4, 4,
@@ -158,7 +158,7 @@ end
 object.oncombateventOld = object.oncombatevent
 object.oncombatevent = object.oncombateventOverride
 
-local function GetDistanceToSelf(unit)
+local function GetDistanceTo(unit)
   local me = core.unitSelf
   local myPos = me:GetPosition()
   return Vector3.Distance2DSq(myPos, unit:GetPosition())
@@ -238,13 +238,6 @@ local function NextItemShouldBeBought(botbrain)
   return false
 end
 
-local function DetermineIfAllyNeedsToBeSaved()
-  local me = core.unitSelf
-  local myPos = me:GetPosition()
-  local allyHeroes = core.allyHeroes
-  local enemyHeroes = core.CopyTable(core.localUnits["EnemyHeroes"])
-end
-
 local function DetermineEnemyWithOwnAlliesClose(me, count, distance)
   local myPos = me:GetPosition()
   --local allies = core.CopyTable(core.localUnits["AllyUnits"])
@@ -289,7 +282,7 @@ local function HealAtWellExecuteOverride(botbrain)
   local destination = DetermineClosestSafePosition()
   local closestEnemyHero = GetClosestEnemyHero()
   local closeEnemyTower = DetermineCloseEnemyTower(1500)
-  if not actionTaken and closestEnemyHero and GetDistanceToSelf(closestEnemyHero) < 1500*1500 then
+  if not actionTaken and closestEnemyHero and GetDistanceTo(closestEnemyHero) < 1500*1500 then
     object.HealAtWellExecuteOld(botbrain)
     actionTaken = true
   end
@@ -308,36 +301,29 @@ end
 object.HealAtWellExecuteOld = behaviorLib.HealAtWellBehavior["Execute"]
 behaviorLib.HealAtWellBehavior["Execute"] = HealAtWellExecuteOverride
 
-local stayCloseToAllies = false
-local function PositionSelfUtilityOverride(botbrain)
-  local closestAllyHero = GetClosestAllyHero()
+local closestAllyHero
+local function StayCloseToAlliesUtility(botbrain)
+  closestAllyHero = GetClosestAllyHero()
   local closestEnemyHero = GetClosestEnemyHero()
-  if closestAllyHero and GetDistanceToSelf(closestAllyHero) > 100*100 and closestEnemyHero and GetDistanceToSelf(closestEnemyHero) < 1500*1500 then
-    stayCloseToAllies = true
-    Echo("staying close to allies")
-    return 60
+  if closestAllyHero and GetDistanceTo(closestAllyHero) > 100*100 and closestEnemyHero and GetDistanceTo(closestEnemyHero) < 1500*1500 then
+    --Echo("staying close to allies")
+    return 40
   end
-  return object.PositionSelfUtilityOld(botbrain)
+  return 0
 end
-object.PositionSelfUtilityOld = behaviorLib.PositionSelfBehavior["Utility"]
-behaviorLib.PositionSelfBehavior["Utility"] = PositionSelfUtilityOverride
 
-local function PositionSelfExecuteOverride(botbrain)
+local function StayCloseToAlliesExecute(botbrain)
   local me = core.unitSelf
   local closestAllyHero = GetClosestAllyHero()
-  local actionTaken = false
-  if stayCloseToAllies and closestAllyHero then
+  if closestAllyHero then
     core.OrderMoveToPosAndHoldClamp(botbrain, me, closestAllyHero:GetPosition(), false)
-    actionTaken = true
   end
-  if not actionTaken then
-    object.PositionSelfExecuteOld(botbrain)
-  end
-
-  
 end
-object.PositionSelfExecuteOld = behaviorLib.PositionSelfBehavior["Execute"]
-behaviorLib.PositionSelfBehavior["Execute"] = PositionSelfExecuteOverride
+local StayCloseToAlliesBehavior = {}
+StayCloseToAlliesBehavior["Utility"] = StayCloseToAlliesUtility
+StayCloseToAlliesBehavior["Execute"] = StayCloseToAlliesExecute
+StayCloseToAlliesBehavior["Name"] = "StayCloseToAllies"
+tinsert(behaviorLib.tBehaviors, StayCloseToAlliesBehavior)
 
 
 
@@ -380,20 +366,25 @@ local function DetermineEnemiesCloseTogetherPosition(distanceToSelf, count)
   return nil
 end
 
+-- Tähän paljon lisää vielä
+local function DetermineAllyHeroInDanger()
+  local allyHeroes = core.CopyTable(core.localUnits["AllyHeroes"])
+  for _, hero in pairs(allyHeroes) do
+    if hero:GetHealthPercent() < 0.5 then
+      return hero
+    end
+  end
+end
+
+
 local healTargetPos = nil
 local function HealUtility(botbrain)
   local heal = skills.heal
   local me = core.unitSelf
-  if heal and heal:CanActivate() then
-    if me:GetHealthPercent() < 0.5 and me:GetHealthRegen() < 50 then
-      healTargetPos = me:GetPosition()
-      return 110
-    end
-    local target = DetermineEnemiesCloseTogetherPosition(450, 3)
-    if me:GetManaPercent() > 0.5 and target then
-      healTargetPos = target
-      return 100
-    end
+  local allyHeroInDanger = DetermineAllyHeroInDanger()
+  if heal and heal:CanActivate() and allyHeroInDanger then
+    healTargetPos = allyHeroInDanger:GetPosition()
+    return 80
   end
   return 0
 end
@@ -415,27 +406,56 @@ HealBehavior["Utility"] = HealUtility
 HealBehavior["Execute"] = HealExecute
 HealBehavior["Name"] = "Healing"
 tinsert(behaviorLib.tBehaviors, HealBehavior)
--- Tähtää vihollisiin, mene itse alueelle
 
+local function ShouldCastManaOn(target)
+  local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
+  for _, enemy in pairs(enemies) do
+    local enemyPos = enemy:GetPosition()
+    local enemyRange = enemy:GetAttackRange()
+    local distanceEnemy = Vector3.Distance2DSq(target:GetPosition(), enemyPos)
+    if distanceEnemy < 1.2 * enemyRange * enemyRange then
+      --Echo("should not cast mana")
+      return false
+    end
+  end
+  return true
+end
+
+local function FindAllyWithLowestMana()
+  local me = core.unitSelf
+  local myPos = me:GetPosition()
+  local allyHeroes = core.CopyTable(core.localUnits["AllyHeroes"])
+  local lowestMana = -1
+  local lowestManaAlly
+  for _, ally in pairs(allyHeroes) do
+    local allyMana = ally:GetManaPercent()
+    if lowestMana == -1 or allyMana < lowestMana then
+      lowestManaAlly = ally
+      lowestMana = allyMana
+    end
+  end
+  return lowestManaAlly
+end
+
+local manaTarget
 local function ManaUtility(botbrain)
   local mana = skills.mana
   local me = core.unitSelf
   local myPos = me:GetPosition()
   if mana and mana:CanActivate() then
-
-    local enemies = core.CopyTable(core.localUnits["EnemyHeroes"])
-    for _, enemy in pairs(enemies) do
-      local enemyPos = enemy:GetPosition()
-      local enemyRange = enemy:GetAttackRange()
-      local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
-      if distanceEnemy < 1.2 * enemyRange * enemyRange then
-        return 0
-      end
+    if me:GetManaPercent() < 0.5 and ShouldCastManaOn(me) then
+      manaTarget = me
+      return 60
     end
-    if me:GetManaRegen() > 50 then
-      return 0
+    --Echo("too high mana on self")
+    local lowestManaAlly = FindAllyWithLowestMana()
+    if not lowestManaAlly then
+      --Echo("lowest mana ally not found")
     end
-    return 60
+    if lowestManaAlly and lowestManaAlly:GetManaPercent() < 0.8 and ShouldCastManaOn(lowestManaAlly) then
+      manaTarget = lowestManaAlly
+      return 60
+    end
   end
   return 0
 end
@@ -444,7 +464,7 @@ local function ManaExecute(botbrain)
   local mana = skills.mana
   local me = core.unitSelf
   if mana and mana:CanActivate() then
-    return core.OrderAbilityEntity(botbrain, mana, me)
+    return core.OrderAbilityEntity(botbrain, mana, manaTarget)
   end
   return false
 end
@@ -458,13 +478,10 @@ local stunTarget = nil
 local function StunUtility(botbrain)
   local stun = skills.stun
   local me = core.unitSelf
-  if stun and stun:CanActivate() then
-    local target = DetermineEnemyWithOwnAlliesClose(me, 1, 900)
-    if target then
-      stunTarget = target
-      return 60
-    end
-    return 0
+  local allyHeroInDanger = DetermineAllyHeroInDanger(botbrain)
+  if stun and stun:CanActivate() and allyHeroInDanger then
+    stunTarget = allyHeroInDanger
+    return 60
   end
   return 0
 end
@@ -489,7 +506,7 @@ local function TeleportUtility(botbrain)
   local me = core.unitSelf
   local myPos = me:GetPosition()
   local distanceToWell = Vector3.Distance2DSq(myPos, core.allyWell:GetPosition())
-  if teleport and teleport:CanActivate() and distanceToWell < 10000 and me:GetHealthPercent() > 0.7 and me:GetManaPercent() > 0.7 then
+  if teleport and (teleport:CanActivate() or teleport:GetIsChanneling()) and distanceToWell < 100*100 and me:GetHealthPercent() > 0.7 and me:GetManaPercent() > 0.7 then
     local target = DetermineTeleportPosition()
     if target then
       teleportTarget = target
@@ -502,6 +519,9 @@ end
 
 local function TeleportExecute(botbrain)
   local teleport = skills.ulti
+  if teleport:GetIsChanneling() then
+    return false
+  end
   if teleport and teleport:CanActivate() and teleportTarget then
     return core.OrderAbilityPosition(botbrain, teleport, teleportTarget)
   end

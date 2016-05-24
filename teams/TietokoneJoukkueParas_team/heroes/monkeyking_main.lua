@@ -1,4 +1,3 @@
-
 local _G = getfenv(0)
 local object = _G.object
 
@@ -35,6 +34,7 @@ runfile "bots/botbraincore.lua"
 runfile "bots/eventsLib.lua"
 runfile "bots/metadata.lua"
 runfile "bots/behaviorLib.lua"
+runfile "bots/teams/TietokoneJoukkueParas_team/generics.lua"
 
 local core, eventsLib, behaviorLib, metadata, skills = object.core, object.eventsLib, object.behaviorLib, object.metadata, object.skills
 
@@ -53,6 +53,12 @@ BotEcho('loading monkeyking_main...')
 object.heroName = 'Hero_MonkeyKing'
 
 local heroWeight = 3
+
+behaviorLib.StartingItems = {"2 Item_HealthPotion", "Item_ManaPotion", "Item_MinorTotem", "Item_RunesOfTheBlight", "Item_LoggersHatchet"}
+behaviorLib.LaneItems = {"Item_Bottle", "Item_Energizer", "Item_GuardianRing", "Item_Scarab", "Item_ManaRegen3"}
+behaviorLib.MidItems = {"Item_EnhancedMarchers", "Item_Dawnbringer", "Item_PowerSupply"}
+behaviorLib.LateItems = {"Item_DaemonicBreastplate", "Item_Protect"}
+
 --------------------------------
 -- Lanes
 --------------------------------
@@ -97,13 +103,6 @@ function object:SkillBuild()
     skills.attributeBoost:LevelUp()
   end
 end
-
-
-behaviorLib.StartingItems = {"2 Item_HealthPotion", "Item_ManaPotion", "Item_MinorTotem", "Item_RunesOfTheBlight", "Item_LoggersHatchet"}
-behaviorLib.LaneItems = {"Item_Bottle", "Item_Energizer",}
-behaviorLib.MidItems = {"Item_EnhancedMarchers", "Item_Dawnbringer", "Item_PowerSupply"}
-behaviorLib.LateItems = {"Item_DaemonicBreastplate", "Item_Protect"}
-
 
 local function myDistanceTo(unitEnemy) 
 
@@ -376,7 +375,7 @@ local function RockBehaviorUtility(botBrain)
 end
 
 local function RockBehaviorExecute(botBrain)
-  local rock = skills.rock
+    local rock = skills.rock
 
 
 	if rock and rock:CanActivate() then
