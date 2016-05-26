@@ -65,6 +65,7 @@ function object:SkillBuild()
     skills.hook = unitSelf:GetAbility(0)
     skills.rot = unitSelf:GetAbility(1)
     skills.skin = unitSelf:GetAbility(2)
+    skills.courier = core.unitSelf:GetAbility(12)
     skills.ulti = unitSelf:GetAbility(3)
     skills.attributeBoost = unitSelf:GetAbility(4)
 
