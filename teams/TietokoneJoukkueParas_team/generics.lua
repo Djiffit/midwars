@@ -15,6 +15,116 @@ local generics = object.generics
 
 BotEcho("loading default generics ..")
 
+--count used slots in stash
+local function StashSlots(inventory)
+  local open = 0
+  for slot = 7, 12, 1 do
+    iteminSlot = inventory[slot]
+    if iteminSlot == nil then
+      open = open + 1
+    end
+  end
+  return open
+end
+
+
+--Check if should send itemssssses
+local function CourierUtility(botBrain)
+  local inventory = core.unitSelf:GetInventory(true)
+  local slots = StashSlots(inventory)
+  for id,unit in pairs (HoN.GetUnitsInRadius(core.unitSelf:GetPosition(), 10012000, core.UNIT_MASK_ALIVE + core.UNIT_MASK_UNIT)) do
+    local name = unit:GetTypeName()
+    local id = unit:GetOwnerPlayerID()
+    if name == "Pet_AutomatedCourier" and id == core.unitSelf:GetOwnerPlayerID() then 
+      return 0
+    end
+
+ end
+  if slots ~= 6 then 
+    return 100
+  end
+  return 0
+end
+
+local function CourierExecute(botBrain)
+  return core.OrderAbility(botBrain, core.unitSelf:GetAbility(12), false)
+end
+
+
+local CourierBehavior = {}
+CourierBehavior["Utility"] = CourierUtility
+CourierBehavior["Execute"] = CourierExecute
+CourierBehavior["Name"] = "Courier"
+tinsert(behaviorLib.tBehaviors, CourierBehavior)
+
+--Shopping BEHAVIOUR !! ! ! ! ! !
+local function ShopUtilityOverride(botBrain)
+  behaviorLib.DetermineBuyState(botBrain)
+  local nextItemBought = behaviorLib.DetermineNextItemDef(botBrain)
+  if nextItemBought and core.unitSelf:GetItemCostRemaining(nextItemBought) > 0 and botBrain:GetGold() > core.unitSelf:GetItemCostRemaining(nextItemBought) and StashSlots(core.unitSelf:GetInventory(true)) > 0  then  
+    return 99.9
+  end
+  return 0
+end
+
+local function ShopExecuteOverride(botBrain) 
+    if behaviorLib.nextBuyTime > HoN.GetGameTime() then
+		return
+	end
+
+	behaviorLib.nextBuyTime = HoN.GetGameTime() + behaviorLib.buyInterval
+
+	--Determine where in the pattern we are (mostly for reloads)
+	if behaviorLib.buyState == behaviorLib.BuyStateUnknown then
+		behaviorLib.DetermineBuyState(botBrain)
+	end
+	
+	local unitSelf = core.unitSelf
+	local bShuffled = false
+	local bGoldReduced = false
+	local tInventory = core.unitSelf:GetInventory(true)
+	local nextItemDef = behaviorLib.DetermineNextItemDef(botBrain)
+	local bBuyTPStone = false
+	local bBuyTPStone = false
+	local bBuyTPStone = false 
+
+	if nextItemDef ~= nil then
+		core.teamBotBrain.bPurchasedThisFrame = true
+		
+		--open up slots if we don't have enough room in the stash + inventory
+		local componentDefs = unitSelf:GetItemComponentsRemaining(nextItemDef)
+		local slotsOpen = behaviorLib.NumberSlotsOpen(tInventory)
+
+
+		if #componentDefs > slotsOpen + 1 then --1 for provisional slot
+			behaviorLib.SellLowestItems(botBrain, #componentDefs - slotsOpen - 1)
+		elseif #componentDefs == 0 then
+			behaviorLib.ShuffleCombine(botBrain, nextItemDef, unitSelf)
+		end
+
+		local nGoldAmountBefore = botBrain:GetGold()
+		
+		if nextItemDef ~= nil and unitSelf:GetItemCostRemaining(nextItemDef) < nGoldAmountBefore then
+			unitSelf:PurchaseRemaining(nextItemDef)
+		end
+
+		local nGoldAmountAfter = botBrain:GetGold()
+		bGoldReduced = (nGoldAmountAfter < nGoldAmountBefore)
+
+		--Check to see if this purchased item has uncombined parts
+		componentDefs = unitSelf:GetItemComponentsRemaining(nextItemDef)
+		if #componentDefs == 0 then
+			behaviorLib.ShuffleCombine(botBrain, nextItemDef, unitSelf)
+		end
+		behaviorLib.addItemBehavior(nextItemDef:GetName())
+	end
+	bShuffled = behaviorLib.SortInventoryAndStash(botBrain)
+end
+
+behaviorLib.ShopBehavior["Utility"] = ShopUtilityOverride
+behaviorLib.ShopBehavior["Execute"] = ShopExecuteOverride
+
+
 
 -- isClose() returns true if target is near
 local function isClose(target)
@@ -241,10 +351,6 @@ local function PassiveState()
 end
 
 
-
-
-
-
 local function FurthestPositionEarlyAdjust(position)
   if PassiveState() then
 
@@ -286,6 +392,34 @@ local function PositionSelfLogicOverride(botBrain)
   return FurthestPositionEarlyAdjust(PositionSelfLogicOld(botBrain))
 end
 behaviorLib.PositionSelfLogic = PositionSelfLogicOverride
+
+local skillshot_spots_file = "/bots/teams/default/metadata/skillshot_spots.botmetadata"
+local function RegisterSkillshots()
+  if not metadata.tMetadataFileNames[skillshot_spots_file] then
+    metadata.tMetadataFileNames[skillshot_spots_file] = true
+    BotEcho("Trying to register \""..skillshot_spots_file.."\"")
+    BotMetaData.RegisterLayer(skillshot_spots_file)
+  end
+end
+
+function generics.GetOwnSkillshotSpots()
+  metadata.SetActiveLayer(skillshot_spots_file)
+  local tNodes = BotMetaData.GetAllNodes()
+  metadata.SetActiveLayer(metadata.MapMetadataFile)
+  local tOwnNodes = {}
+  local team = nil
+  if core.myTeam == HoN.GetLegionTeam() then
+    team = "legion"
+  else
+    team = "hellbourne"
+  end
+  for _, node in pairs(tNodes) do
+    if node:GetProperty("zone") == team then
+      tinsert(tOwnNodes, node)
+    end
+  end
+  return tOwnNodes
+end
 
 --[[
 local function TeamAvoidHookUtility(botBrain)
