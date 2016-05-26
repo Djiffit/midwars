@@ -92,9 +92,9 @@ function object:SkillBuild()
   end
 end
 
-behaviorLib.StartingItems = {"Item_ManaBattery", "2 Item_MinorTotem", "Item_HealthPotion", "Item_RunesOfTheBlight"}
+behaviorLib.StartingItems = {"Item_ManaBattery", "2 Item_MinorTotem", "Item_IronBuckler"}
 behaviorLib.LaneItems = {"Item_Marchers", "Item_EnhancedMarchers", "Item_PowerSupply"}
-behaviorLib.MidItems = {"Item_PortalKey", "Item_MagicArmor2"}
+behaviorLib.MidItems = {"Item_Intelligence7", "Item_BehemothsHeart", "Item_Immunity"}
 behaviorLib.LateItems = {"Item_BehemothsHeart"}
 
 ------------------------------------------------------
@@ -225,7 +225,7 @@ local function IsFreeLine(pos1, pos2)
   local tEnemies = core.CopyTable(core.localUnits["EnemyCreeps"])
   local distanceLine = Vector3.Distance2DSq(pos1, pos2)
   local x1, x2, y1, y2 = pos1.x, pos2.x, pos1.y, pos2.y
-  local spaceBetween = 50 * 50
+  local spaceBetween = 190 * 190
   for _, ally in pairs(tAllies) do
     local posAlly = ally:GetPosition()
     local x3, y3 = posAlly.x, posAlly.y
@@ -257,12 +257,20 @@ local function DetermineHookTarget(hook)
   local maxDistance = hook:GetRange()
   local maxDistanceSq = maxDistance * maxDistance
   local myPos = core.unitSelf:GetPosition()
+  local teamBotBrain = core.teamBotBrain
+  if teamBotBrain.GetTeamTarget then
+    local teamTarget = teamBotBrain:GetTeamTarget()
+    if teamTarget then
+      if IsFreeLine(myPos, teamTarget:GetPosition()) then
+        return teamTarget
+      end
+    end
+  end
   local unitTarget = nil
   local distanceTarget = 999999999
   for _, unitEnemy in pairs(tLocalEnemies) do
     local enemyPos = unitEnemy:GetPosition()
     local distanceEnemy = Vector3.Distance2DSq(myPos, enemyPos)
-    core.DrawXPosition(enemyPos, "yellow", 50)
     if distanceEnemy < maxDistanceSq then
       if distanceEnemy < distanceTarget and IsFreeLine(myPos, enemyPos) then
         unitTarget = unitEnemy
@@ -312,6 +320,43 @@ local function HasEnemiesInRange(unit, range)
   end
   return false
 end
+function generics.GetOwnSkillshotSpots()
+  metadata.SetActiveLayer(skillshot_spots_file)
+  local tNodes = BotMetaData.GetAllNodes()
+  metadata.SetActiveLayer(metadata.MapMetadataFile)
+  local tOwnNodes = {}
+  local team = nil
+  if core.myTeam == HoN.GetLegionTeam() then
+    team = "legion"
+  else
+    team = "hellbourne"
+  end
+  for _, node in pairs(tNodes) do
+    if node:GetProperty("zone") == team then
+      tinsert(tOwnNodes, node)
+    end
+  end
+  return tOwnNodes
+end
+
+local PositionSelfLogicOld = behaviorLib.PositionSelfLogic
+local function PositionSelfLogicOverride(botBrain)
+  local pos = PositionSelfLogicOld(botBrain)
+  local originalPos = core.unitSelf:GetPosition()
+  local pos2 = nil
+  for _, node in pairs(GetOwnSkillshotSpots()) do
+    local nodePos = node:GetPosition()
+    local nAllies = core.NumberElements(HoN.GetUnitsInRadius(nodePos, 100, core.UNIT_MASK_ALIVE + core.UNIT_MASK_HERO))
+    if Vector3.Distance2D(nodePos, pos) < 2000 and nAllies == 0 then
+      if not pos2 or Vector3.Distance2D(pos2, originalPos) > Vector3.Distance2D(nodePos, originalPos) then
+        pos = nodePos
+        pos2 = nodePos
+      end
+    end
+  end
+  return pos
+end
+behaviorLib.PositionSelfLogic = PositionSelfLogicOverride
 local function RotEnableUtility(botBrain)
   local rot = skills.rot
   local rotRange = rot:GetTargetRadius()
