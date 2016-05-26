@@ -14,7 +14,7 @@ object.bAttackCommands = true
 object.bAbilityCommands = true
 object.bOtherCommands = true
 
-object.bReportBehavior = false
+object.bReportBehavior = true
 object.bDebugUtility = false
 object.bDebugExecute = false
 
@@ -52,11 +52,11 @@ object.heroName = 'Hero_Valkyrie'
 behaviorLib.StartingItems  = 
 			{"Item_Bottle"}
 behaviorLib.LaneItems  = 
-			{ "Item_PowerSupply", "Item_Steamboots"}
+			{ "Item_PowerSupply", "Item_Marchers", "Item_EnhancedMarchers"}
 behaviorLib.MidItems  = 
-			{ "Item_Soulscream", "Item_Energizer", "Item_Lightbrand"}
+			{ "Item_Pierce", "Item_Sasuke", "Item_Energizer"}
 behaviorLib.LateItems  = 
-			{"Item_Dawnbringer", "Item_ManaBurn1 2", "Item_Weapon3", "Item_Evasion"}
+			{"Item_Dawnbringer", "Item_Weapon3", "Item_Evasion"}
 
 -- tavarat
 
@@ -84,6 +84,8 @@ function object:SkillBuild()
   if skills.abilCall == nil then
     skills.call = unitSelf:GetAbility(0)
     skills.javelin = unitSelf:GetAbility(1)
+
+	skills.courier = core.unitSelf:GetAbility(12)
     skills.leap = unitSelf:GetAbility(2)
     skills.ulti = unitSelf:GetAbility(3)
     skills.attributeBoost = unitSelf:GetAbility(4)
@@ -424,7 +426,7 @@ local function RetreatFromThreatExecuteOverride(botBrain)
   local angle = core.HeadingDifference(unitSelf, core.allyMainBaseStructure:GetPosition())
 	if not bActionTaken then
 		local heroes = HoN.GetHeroes(core.enemyTeam)
-		if angle < 0.5 and EnemiesNear(unitSelf:GetPosition(), heroes, 400, 0) and leap:CanActivate() then
+		if angle < 0.5 and EnemiesNear(unitSelf:GetPosition(), heroes, 260, 0) and leap:CanActivate() then
 			for index, enemy in pairs(heroes) do
 				if leap:CanActivate() then
 					bActionTaken = core.OrderAbility(botBrain, leap)
