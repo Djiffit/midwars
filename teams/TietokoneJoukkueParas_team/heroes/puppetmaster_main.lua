@@ -72,6 +72,7 @@ function object:SkillBuild()
     skills.show = unitSelf:GetAbility(1)
     skills.whip = unitSelf:GetAbility(2)
     skills.ulti = unitSelf:GetAbility(3)
+    skills.courier = core.unitSelf:GetAbility(12)
     skills.attributeBoost = unitSelf:GetAbility(4)
 
     if skills.hold and skills.show and skills.whip and skills.ulti and skills.attributeBoost then
