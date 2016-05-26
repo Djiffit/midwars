@@ -77,6 +77,7 @@ function object:SkillBuild()
     skills.dash = unitSelf:GetAbility(0)
     skills.pole = unitSelf:GetAbility(1)
     skills.rock = unitSelf:GetAbility(2)
+    skills.courier = core.unitSelf:GetAbility(12)
     skills.ulti = unitSelf:GetAbility(3)
     skills.attributeBoost = unitSelf:GetAbility(4)
 
