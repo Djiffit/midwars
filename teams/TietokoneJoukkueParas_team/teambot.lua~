@@ -85,7 +85,7 @@ local function TargetUtility(targetHero)
 	
 
 	util = util - dist / 500 + (1 - health) * 1.5
-	BotEcho('target utility is ' .. util)
+
 	return util
 
 end

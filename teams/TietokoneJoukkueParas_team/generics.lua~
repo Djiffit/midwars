@@ -262,8 +262,8 @@ local function FurthestPositionEarlyAdjust(position)
     local pos1 = towerPos + core.RotateVec2D(vector, -10)
     local pos2 = towerPos + core.RotateVec2D(vector, 10)
     local wantedVec = pos1 - pos2
-    local wantedPos = pos2 + wantedVec * core.RandomReal()
-    return wantedPos
+    local wantedPos = pos2 + wantedVec * 0.5
+    return vector
   end
   return position
 end

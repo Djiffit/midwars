@@ -25,11 +25,11 @@ local function oncombateventCustom(botBrain, EventData)
 
   if teamBotBrain and teamBotBrain.SetTeamTarget then
     if source and source:IsHero() and source:IsAlive() and source:GetTeam() == core.enemyTeam and unitSelf and unitSelf:GetPosition() and source:GetPosition() and Vector3.Distance2D(unitSelf:GetPosition(), source:GetPosition()) < 500 then
-      	BotEcho('Setting source as team target')
+      	BotEcho('Setting team target')
 	teamBotBrain:SetTeamTarget(source)
     end
     if target and target:IsHero() and target:IsAlive() and target:GetTeam() == core.enemyTeam and unitSelf and unitSelf:GetPosition() and target:GetPosition() and Vector3.Distance2D(unitSelf:GetPosition(), target:GetPosition()) < 500 then
-      BotEcho('Setting target as team target')
+      BotEcho('Setting team target')
       teamBotBrain:SetTeamTarget(target)
     end
   end
