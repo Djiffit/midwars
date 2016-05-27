@@ -362,11 +362,6 @@ local function FurthestPositionEarlyAdjust(position)
     
     local factor = 1
 
-    if not string.find(object.myName, "Killer") then
-	object.myName = object.myName .. "Killer"
-    end
-
-
     if string.find(object.myName, "Valkyrie") or string.find(object.myName, "Nymphora") or string.find(object.myName, "PuppetMaster") then
        factor = 0.7
     end
