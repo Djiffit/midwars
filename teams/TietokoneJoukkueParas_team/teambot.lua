@@ -1,7 +1,10 @@
 local _G = getfenv(0)
 local object = _G.object
 
+runfile "bots/core.lua"
 runfile 'bots/teambot/teambotbrain.lua'
+
+local core, eventsLib, behaviorLib, metadata, skills = object.core, object.eventsLib, object.behaviorLib, object.metadata, object.skills
 
 object.myName = 'TietokoneJoukkueParas'
 

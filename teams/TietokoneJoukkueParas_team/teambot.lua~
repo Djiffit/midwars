@@ -1,8 +1,12 @@
 local _G = getfenv(0)
 local object = _G.object
 
+--[[
+runfile "bots/core.lua"
 runfile 'bots/teambot/teambotbrain.lua'
 
+local core, eventsLib, behaviorLib, metadata, skills = object.core, object.eventsLib, object.behaviorLib, object.metadata, object.skills
+--]]
 object.myName = 'TietokoneJoukkueParas'
 
 ------------------------------------------------------
@@ -85,7 +89,7 @@ local function TargetUtility(targetHero)
 	
 
 	util = util - dist / 500 + (1 - health) * 1.5
-
+	BotEcho('target utility is ' .. util)
 	return util
 
 end
